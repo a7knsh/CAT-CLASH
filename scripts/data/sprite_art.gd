@@ -1,0 +1,330 @@
+class_name SpriteArt
+extends RefCounted
+## Text-grid pixel art. Each sprite is a list of equal-ish rows where every
+## character is a palette key (see PALETTE) and "." is transparent.
+## Sprites are authored facing RIGHT. The factory adds a 1px dark outline.
+## See docs/ASSET_PIPELINE.md for conventions.
+
+const PALETTE := {
+	"k": Color("2a1e30"), "x": Color("181420"), "w": Color("f4f0ff"), "g": Color("d8dcec"),
+	"s": Color("9aa4bc"), "d": Color("5a6078"), "b": Color("a4683a"), "n": Color("6a3e22"),
+	"t": Color("d8b080"), "h": Color("e0a050"), "y": Color("ffd23f"), "o": Color("ff8a2a"),
+	"r": Color("e83a4a"), "p": Color("ff7ab0"), "m": Color("d040c0"), "v": Color("8a4ae0"),
+	"u": Color("3a7ae8"), "c": Color("6ae0ff"), "i": Color("c8f0ff"), "e": Color("3ab85a"),
+	"l": Color("8af04a"), "f": Color("7a9ac0"), "a": Color("ffb0c8"), "z": Color("8a2a3a"),
+}
+
+## Weapon sprites: grid + grip pixel (where the paw holds it).
+const WEAPONS := {
+	"sword": {"grip": Vector2(1, 1.5), "grid": [
+		"...y............",
+		"bbbygggggggggggw",
+		"nnnyssssssssssw.",
+		"...y............"]},
+	"katana": {"grip": Vector2(1, 1.5), "grid": [
+		"....y..............",
+		"rkrkygggggggggggggw",
+		"rkrkysssssssssssss.",
+		"....y.............."]},
+	"dagger": {"grip": Vector2(1, 1), "grid": [
+		"..y.....",
+		"nbygggw.",
+		"..yss..."]},
+	"axe": {"grip": Vector2(1, 2), "grid": [
+		"..........sw..",
+		".........dssw.",
+		"nbbbbbbbbdssgw",
+		".........dssw.",
+		"..........sw.."]},
+	"hammer": {"grip": Vector2(1, 2), "grid": [
+		"..........dddd",
+		"..........ssss",
+		"nbbbbbbbbbsggs",
+		"..........ssss",
+		"..........dddd"]},
+	"spear": {"grip": Vector2(7, 1), "grid": [
+		"....................g..",
+		"nbbbbbbbbbbbbbbbbbbysgw",
+		"....................s.."]},
+	"lance": {"grip": Vector2(2, 2), "grid": [
+		"......y...................",
+		"......yygggggggggg........",
+		"nbbbbbyyssssssssssssssssgw",
+		"......yydddddddddd........",
+		"......y..................."]},
+	"scythe": {"grip": Vector2(2, 1), "grid": [
+		"..................n.",
+		"nbbbbbbbbbbbbbbbbbbn",
+		"...........ggsssssd.",
+		".............gsssd..",
+		"................sd.."]},
+	"bat": {"grip": Vector2(2, 1.5), "grid": [
+		"..........bbbbb.",
+		"kktttbbbbbbbbbbb",
+		"kktttnnnnnnnnnnn",
+		"..........nnnnn."]},
+	"pan": {"grip": Vector2(1, 2), "grid": [
+		".........xxxx.",
+		"........xddddx",
+		"bbbbbbbbxdsdsx",
+		"........xddddx",
+		".........xxxx."]},
+	"stick": {"grip": Vector2(1, 1), "grid": [
+		"..........n...",
+		"nbbbbbbbbbbbbn",
+		"....n........."]},
+	"gloves": {"grip": Vector2(1, 3), "grid": [
+		".rrrr.",
+		"rrrrwr",
+		"rrrrrr",
+		"wwrrr.",
+		"ww...."]},
+	"claws": {"grip": Vector2(1, 1.5), "grid": [
+		"...sgw",
+		"dddsss",
+		"dddsgw",
+		"...sgw"]},
+	"chain": {"grip": Vector2(1, 1), "grid": [
+		"...s.s.s.s.s.s.s..",
+		"nbbdsdsdsdsdsdsdyy",
+		"...s.s.s.s.s.s.s.."]},
+	"mallet": {"grip": Vector2(2, 3.5), "grid": [
+		"............pppppppp",
+		"............pwwppppp",
+		"............pppppppp",
+		"nbbbbbbbbbbbyyyyyyyy",
+		"nbbbbbbbbbbbyyyyyyyy",
+		"............pppppppp",
+		"............pppppppp",
+		"............mmmmmmmm"]},
+	"bow": {"grip": Vector2(4, 4.5), "grid": [
+		"w.b..",
+		"w..b.",
+		"w...b",
+		"w...b",
+		"w...n",
+		"w...n",
+		"w...b",
+		"w...b",
+		"w..b.",
+		"w.b.."]},
+	"crossbow": {"grip": Vector2(2, 2), "grid": [
+		".........b....",
+		"........w.b...",
+		"nnbbbbbbbbbbsg",
+		"........w.b...",
+		".........b...."]},
+	"slingshot": {"grip": Vector2(1, 2), "grid": [
+		"....bb",
+		"...b.r",
+		"nnbb.r",
+		"...b.r",
+		"....bb"]},
+	"blaster": {"grip": Vector2(1, 3), "grid": [
+		"..uuuuuuu...",
+		".ucccccccuuw",
+		"dduuuuuuuuu.",
+		"dd.d........",
+		"dd.........."]},
+	"pistol": {"grip": Vector2(1, 3), "grid": [
+		".mmmmm...",
+		"mvvvvvmmc",
+		"dd.m.....",
+		"dd.......",
+		"dd......."]},
+	"snowgun": {"grip": Vector2(1, 3), "grid": [
+		"..uuuuuuuuuu..",
+		".uiiiiiiiiiiuw",
+		".uiiiiiiiiiiuw",
+		"dduuuuuuuuuu..",
+		"dd.....d......"]},
+	"paintgun": {"grip": Vector2(1, 3), "grid": [
+		"..mpy.......",
+		"..mpy.......",
+		"lllllllllldd",
+		"dd.d........",
+		"dd.........."]},
+	"wand": {"grip": Vector2(1, 1), "grid": [
+		"........y.",
+		"xxxxxxwyyy",
+		"........y."]},
+	"boomerang": {"grip": Vector2(1, 1), "grid": [
+		"oo......",
+		"ooo.....",
+		".ooo....",
+		"..oooooo",
+		"...ooooo"]},
+	"rocket": {"grip": Vector2(5, 4), "grid": [
+		"..ddddddddddddddd.",
+		".deeeeeeeeeeeeeerr",
+		".deeeeeeeeeeeeeerr",
+		"..dddddddddddddddd",
+		".....dd...........",
+		".....dd..........."]},
+	"freezegun": {"grip": Vector2(1, 3), "grid": [
+		"...cccc.....",
+		"uuuiiiiiiiic",
+		"uuuiiiiiiiic",
+		"dd.u........",
+		"dd.........."]},
+	"gravgun": {"grip": Vector2(1, 3), "grid": [
+		"..vvvvvvv.....",
+		"dvvmmmmmmvv.v.",
+		"dvvmmmmmmvv..v",
+		"dd.dd........."]},
+	"lightning": {"grip": Vector2(3, 2), "grid": [
+		"...............y..",
+		"..............yc..",
+		"nbbbbbbbbbbbbbyccw",
+		"..............yc..",
+		"...............y.."]},
+	"firewand": {"grip": Vector2(1, 2), "grid": [
+		"..........o.",
+		".........oyo",
+		"nbbbbbbbbryo",
+		".........ro."]},
+	"bubblegun": {"grip": Vector2(1, 4), "grid": [
+		"....ccc.....",
+		"...cwiic....",
+		"pppppppppppw",
+		"pppppppppppw",
+		"dd.p........",
+		"dd.........."]},
+	"blackhole": {"grip": Vector2(0, 3), "grid": [
+		"..vvv..",
+		".vxxxv.",
+		"vxxwxxv",
+		"vxxxxxv",
+		".vxxxv.",
+		"..vvv.."]},
+	"potion": {"grip": Vector2(1, 4), "grid": [
+		"..nn..",
+		"..gg..",
+		".gllg.",
+		"gllllg",
+		"glwllg",
+		"gllllg",
+		".gggg."]},
+	"fish": {"grip": Vector2(1, 2.5), "grid": [
+		"......ffffffff......",
+		"ff..ffffffffffffff..",
+		"fffffffffffffffffwf.",
+		".fffffffffffffffxfff",
+		"ff..wwwwwwwwwwwwwwww",
+		"......wwwwwwwwwww..."]},
+	"baguette": {"grip": Vector2(2, 2), "grid": [
+		"...hhhhhhhhhhhhh..",
+		".hhthhthhthhthhhh.",
+		"hhhhhhhhhhhhhhhhhh",
+		".nhhhhhhhhhhhhhhn."]},
+	"chicken": {"grip": Vector2(0, 2), "grid": [
+		"...........r..",
+		"..........yyx.",
+		"yyyyyyyyyyyyoo",
+		"..yyyyyyyyyy..",
+		".o.......o...."]},
+	"toysword": {"grip": Vector2(1, 1.5), "grid": [
+		"...p..........",
+		"uuuplllllllll.",
+		"uuuplllllllll.",
+		"...p.........."]},
+	"spoon": {"grip": Vector2(2, 2), "grid": [
+		"............ggg...",
+		"...........gwggg..",
+		"ssssssssssggggggg.",
+		"...........ggggg..",
+		"............ggg..."]},
+	"fishhammer": {"grip": Vector2(1, 2), "grid": [
+		".........ffff.",
+		"........ffffff",
+		"bbbbbbbbffxfff",
+		"........fwwwff",
+		".........ff..."]},
+	"pipe": {"grip": Vector2(1, 1), "grid": [
+		"dssssssssssd",
+		"dggggggggggd",
+		"dssssssssssd"]},
+	"plate": {"grip": Vector2(1, 1), "grid": [
+		"..wwwwww..",
+		".wcwwwwcw.",
+		"wwwwwwwwww",
+		".wwwwwwww."]},
+	"torch": {"grip": Vector2(1, 1), "grid": [
+		"...........oy",
+		"nbbbbbbbbbroy",
+		"...........o."]},
+	"broom": {"grip": Vector2(2, 1), "grid": [
+		"...........hhhh",
+		"nbbbbbbbbbbhhhh",
+		"...........hhhh"]},
+	"fishobj": {"grip": Vector2(4, 2), "grid": [
+		"..yyyyyy....",
+		"yyyyyyyyyy.y",
+		"yyyyyyyyxyyy",
+		"yyyyyyyyyy.y",
+		"..yyyyyy...."]},
+}
+
+## Accessory sprites. slot: head/face/neck/back/ear. layer: "front"/"behind".
+## anchor: pixel of the grid that sits on the slot's attach point.
+const ACCESSORIES := {
+	"top_hat": {"slot": "head", "anchor": Vector2(3, 5), "grid": ["..xxx..", ".xxxxx.", ".xxxxx.", ".rrrrr.", ".xxxxx.", "xxxxxxx"]},
+	"cap": {"slot": "head", "anchor": Vector2(4, 2), "grid": ["..uuuu....", ".uuwuuu...", "uuuuuuuuuu"]},
+	"crown": {"slot": "head", "anchor": Vector2(3, 3), "grid": ["y..y..y", "yy.y.yy", "yryyyuy", "yyyyyyy"]},
+	"viking": {"slot": "head", "anchor": Vector2(5, 3), "grid": ["w........w", ".w.ssss.w.", "..ssgsss..", ".ssssssss."]},
+	"santa_hat": {"slot": "head", "anchor": Vector2(3, 4), "grid": ["......w", "...rrr.", "..rrrrr", ".rrrrrr", "wwwwwww"]},
+	"wizard_hat": {"slot": "head", "anchor": Vector2(4, 5), "grid": ["....v...", "...vv...", "...vvv..", "..vvyv..", ".vvvvvv.", "vvvvvvvv"]},
+	"headphones": {"slot": "head", "anchor": Vector2(4, 1), "grid": [".dddddddd.", "d........d", "rr......rr", "rr......rr"]},
+	"bandana": {"slot": "head", "anchor": Vector2(5, 1), "grid": [".rrrrrrrr.", "rrwrrwrrrr", "r........."]},
+	"flower_crown": {"slot": "head", "anchor": Vector2(4, 1), "grid": ["p.y.p.y.p", "eeeeeeeee"]},
+	"pumpkin": {"slot": "head", "anchor": Vector2(3, 4), "grid": ["...e...", ".ooooo.", "ooooooo", "oyooyoo", "ooooooo"]},
+	"propeller": {"slot": "head", "anchor": Vector2(3, 4), "grid": ["rrr.uuu", "...y...", "..yuy..", ".yuuuy.", "uuuuuuu"]},
+	"antenna": {"slot": "head", "anchor": Vector2(1, 3), "grid": ["r..", ".x.", ".x.", ".x."]},
+	"chef_hat": {"slot": "head", "anchor": Vector2(3, 5), "grid": [".wwwww.", "wwwwwww", "wwwwwww", ".wwwww.", ".ggggg.", ".wwwww."]},
+	"sunglasses": {"slot": "face", "anchor": Vector2(0, 0), "grid": ["xxxxxxx", "xwx.xwx"]},
+	"eyepatch": {"slot": "face", "anchor": Vector2(0, 0), "grid": ["xxxxxxx", "....xx.", "....xx."]},
+	"ninja_mask": {"slot": "face", "anchor": Vector2(0, -2), "grid": ["xxxxxxxx", "xxxxxxxx", ".xxxxxx."]},
+	"goggles": {"slot": "face", "anchor": Vector2(0, 0), "grid": ["dddddddd", "dcwddcwd", "dccddccd"]},
+	"monocle": {"slot": "face", "anchor": Vector2(3, 0), "grid": [".yy.", "y..y", ".yy.", "..y.", "..y."]},
+	"clown_nose": {"slot": "face", "anchor": Vector2(-4, -3), "grid": ["rr", "rr"]},
+	"scarf": {"slot": "neck", "anchor": Vector2(4, 0), "grid": ["rrrrrrr", "rwrwrwr", "rr.....", "rw.....", "rr....."]},
+	"collar": {"slot": "neck", "anchor": Vector2(2, 0), "grid": ["rrrrr"]},
+	"bell_collar": {"slot": "neck", "anchor": Vector2(2, 0), "grid": ["uuuuu", "..y..", ".yyy."]},
+	"neck_bandana": {"slot": "neck", "anchor": Vector2(2, 0), "grid": ["eeeee", ".ewe.", "..e.."]},
+	"bowtie": {"slot": "neck", "anchor": Vector2(2, 0), "grid": ["r...r", "rrrrr", "r...r"]},
+	"cape": {"slot": "back", "layer": "behind", "anchor": Vector2(8, 0), "grid": ["rrrrrrrrr", ".rrrrrrrr", "..rrrrrrr", "..zrrrrrr", "...zrrrrr", "....zzrrr"]},
+	"wings": {"slot": "back", "layer": "behind", "anchor": Vector2(6, 5), "grid": ["ww.....", "wwww...", ".wwwww.", "..wwwww", "...wwww", ".....ww"]},
+	"bat_wings": {"slot": "back", "layer": "behind", "anchor": Vector2(6, 5), "grid": ["x......", "xx.x...", "xxxxx..", ".xvxxxx", "..xxxxx", ".....xx"]},
+	"backpack": {"slot": "back", "anchor": Vector2(2, 1), "grid": ["nnnn", "bbbb", "bnyb", "bbbb"]},
+	"armor": {"slot": "back", "anchor": Vector2(0, 0), "grid": ["sssssssssss", "sgggggggsss", "sssdddssss."]},
+	"jetpack": {"slot": "back", "anchor": Vector2(3, 1), "grid": [".dd.", "dssd", "dgsd", "dssd", ".oo.", ".y.."]},
+	"earring": {"slot": "ear", "anchor": Vector2(1, 0), "grid": [".y.", "y.y", ".y."]},
+	"ear_bow": {"slot": "ear", "anchor": Vector2(1, 1), "grid": ["p.p", "ppp", "p.p"]},
+}
+
+## Small UI icons.
+const ICONS := {
+	"fish": {"grid": [".fff..f", "ffffff.", ".fff..f"]},
+	"yarn": {"grid": [".ppp.", "pwppp", "ppwpp", "pppwp", ".ppp."]},
+	"paw": {"grid": [".p.p.", ".....", "p.p.p", ".ppp.", ".ppp."]},
+	"crown": {"grid": ["y.y.y", "yyyyy", "yryuy"]},
+	"trophy": {"grid": ["yyyyy", "yyyyy", ".yyy.", "..y..", ".yyy."]},
+	"lock": {"grid": [".sss.", ".s.s.", "ggggg", "ggxgg", "ggggg"]},
+	"star": {"grid": ["..y..", "yyyyy", ".yyy.", ".y.y."]},
+	"skull": {"grid": [".www.", "wxwxw", "wwwww", ".w.w."]},
+	"heart": {"grid": ["rr.rr", "rrrrr", ".rrr.", "..r.."]},
+	"bolt": {"grid": ["..yy", ".yy.", "yyyy", ".yy.", "yy.."]},
+	"shield": {"grid": ["ccccc", "cwccc", "ccccc", ".ccc.", "..c.."]},
+	"boot": {"grid": ["..uu.", "..uu.", "uuuu.", "uuuuu"]},
+	"wing": {"grid": ["w....", "ww...", "www..", ".wwww"]},
+	"magnet": {"grid": ["r...u", "r...u", "r...u", ".ggg."]},
+	"bubble": {"grid": [".ccc.", "cw..c", "c...c", ".ccc."]},
+	"ghost": {"grid": [".www.", "wxwxw", "wwwww", "w.w.w"]},
+	"decoy": {"grid": ["p...p", "ppppp", "pxpxp", "ppppp"]},
+	"flame": {"grid": ["..o..", ".oyo.", "oyyyo", ".ooo."]},
+	"grow": {"grid": ["..e..", ".eee.", "eeeee", "..e..", "..e.."]},
+	"feather": {"grid": ["...w", "..ww", ".ww.", "w..."]},
+	"teleport": {"grid": ["m.m.m", ".mmm.", "mmwmm", ".mmm.", "m.m.m"]},
+	"up": {"grid": ["..y..", ".yyy.", "yyyyy", "..y..", "..y.."]},
+	"crate": {"grid": ["nnnnnn", "nbbbbn", "nbnbbn", "nbbnbn", "nbbbbn", "nnnnnn"]},
+}
