@@ -105,3 +105,7 @@ func _rank_score(f: CatFighter) -> float:
 
 func respawn_delay() -> float:
 	return 1.6
+
+
+func net_vars() -> Array:
+	return ["time_left", "sudden_death"]

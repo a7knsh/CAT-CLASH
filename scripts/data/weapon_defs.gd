@@ -1,7 +1,7 @@
 class_name WeaponDefs
 extends RefCounted
 ## Data-driven weapon catalogue. Add a weapon by adding an entry here plus a
-## sprite in SpriteArt.WEAPONS — the moveset is generated from `arch` and stats.
+## sprite in SpriteArt.WEAPONS - the moveset is generated from `arch` and stats.
 ##
 ## Fields
 ##   name, cat (melee/ranged/special/funny/prop), arch (move archetype),

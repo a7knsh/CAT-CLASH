@@ -24,6 +24,7 @@ func _ready() -> void:
 		steps.append(["screen", "main_menu", 30, "02_main_menu"])
 		steps.append(["screen", "mode_select", 20, "03_mode_select"])
 		steps.append(["lobby", "ffa", 40, "04_lobby"])
+		steps.append(["screen", "net", 30, "04b_lan_party"])
 		steps.append(["setup", "team", 20, "05_setup"])
 		steps.append(["creator", 0, 40, "06_creator_coat"])
 		steps.append(["creator", 2, 40, "07_creator_gear"])
@@ -69,10 +70,10 @@ func _next() -> void:
 			await get_tree().process_frame
 			var l: Node = Router.current
 			l._join("kb0")
-			l._join("pad0")
-			l._add_bot()
-			l._add_bot()
-			l.slots[0].ready = true
+			l._join("kb1")
+			for k in 8:
+				l._add_bot()
+			Net.request("set", {"device": "kb0", "ready": true})
 		"setup":
 			Router.session = Sessions.quick_session(s[1], "random", 4, false)
 			Router.goto("setup", {}, false)
@@ -102,7 +103,7 @@ func _next() -> void:
 			Router.goto("tournament", {}, false)
 		"match":
 			var p: Array = s[1]
-			Router.session = Sessions.quick_session(p[0], p[1], 4, true)
+			Router.session = Sessions.quick_session(p[0], p[1], 10 if step % 4 == 0 else 4, true)
 			Router.tournament = {}
 			Router.session["smoke"] = true
 			Router.goto("match", {}, false)

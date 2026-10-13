@@ -1,6 +1,6 @@
 class_name MechaBoss
 extends Node2D
-## MECHA-MOUSER 9000 — the Boss Battle opponent. A giant robot mouse with
+## MECHA-MOUSER 9000 - the Boss Battle opponent. A giant robot mouse with
 ## telegraphed attacks: stomp shockwaves, a wall-bonking charge, homing
 ## missiles and (phase 2) a sweeping eye laser plus minion summons.
 ## Super-armoured: hits damage it but don't knock it around.

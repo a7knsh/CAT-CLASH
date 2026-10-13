@@ -25,6 +25,8 @@ const DEFAULTS := {
 	"stick_sensitivity": 1.0,
 	"rumble": true,
 	"bindings": {},
+	"player_name": "",
+	"last_ip": "",
 }
 
 var data: Dictionary = {}

@@ -9,6 +9,9 @@
 | One mode only | `... -- --smoke --only=capture` | handy while iterating |
 | Debug trace | `CAT_DEBUG=1 godot ... -- --smoke --only=koth` | prints positions, states and goals every 5 s |
 | Screenshots | `godot --path . --fixed-fps 60 --resolution 960x540 -- --shots` | PNGs in `user://shots` (Linux: `~/.local/share/CatClash/shots`) |
+| LAN, 1 client | `-- --nettest=host` then `-- --nettest=client` | both print `PASS` |
+| LAN, 3 clients | `-- --nettest=host --clients=3`, then start 3 clients | host PASS, 3/3 remote cats moved |
+| LAN dropout | `-- --nettest=host --clients=1 --expect-leave`, then `-- --nettest=client --leave-after=12` | the left player's cat is taken over by a CPU and the match finishes |
 | Benchmark | `godot --path . -- --bench` | average frame time well under 16.6 ms |
 
 The smoke test covers:
@@ -23,6 +26,16 @@ The smoke test covers:
   jump, attack a dummy (it must take damage), pick up a sword and throw it.
 
 ## Manual checklist
+
+### LAN play (2+ real devices)
+- [ ] The host appears in the joiner's GAMES ON YOUR NETWORK list within about 2 s
+- [ ] Join by IP works when broadcast is blocked
+- [ ] Two players on one client device (keyboard halves) plus pads on others, 10 fighters in total
+- [ ] The host changes mode or CPUs in the lobby; clients see it live. Clients see "HOST IS SETTING UP" during setup.
+- [ ] Mid-match: effects, sounds, hazards, items, boss and HUD all match the host
+- [ ] Close a client mid-match: its cat becomes a CPU. Close the host: clients return to the menu.
+- [ ] Results: the host chooses REMATCH or BACK TO LOBBY and every device follows
+- [ ] Firewall prompt on Windows: allowing private networks fixes discovery
 
 ### Players and devices
 - [ ] 1 player plus CPUs (keyboard left)

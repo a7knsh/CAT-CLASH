@@ -2,8 +2,8 @@ class_name CatPuppet
 extends Node2D
 ## Procedural pixel "puppet" renderer for cats. Body parts are pixel textures
 ## generated from the skin (Sprites.cat_parts); this node poses and layers
-## them every frame from the fighter's state, giving every cat — built-in or
-## custom — the full animation set with anticipation, squash & stretch,
+## them every frame from the fighter's state, giving every cat - built-in or
+## custom - the full animation set with anticipation, squash & stretch,
 ## follow-through and personality idles.
 ##
 ## Works without a fighter (menus) via the preview_* fields.

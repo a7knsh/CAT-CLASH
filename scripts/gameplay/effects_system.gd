@@ -13,6 +13,8 @@ const K_SMOKE := 3
 const K_STAR := 4
 
 var ctl: Node = null
+## Host of a LAN game: every primitive effect is recorded and replayed on clients.
+var recorder: Callable
 
 var _pos := PackedVector2Array()
 var _vel := PackedVector2Array()
@@ -58,6 +60,8 @@ func emit(pos: Vector2, vel: Vector2, life: float, size: float, col: Color, kind
 	_col[i] = col
 	_kind[i] = kind
 	_grav[i] = grav
+	if recorder.is_valid():
+		recorder.call(["e", pos, vel, life, size, col, kind, grav])
 
 
 # ------------------------------------------------------------- presets
@@ -117,15 +121,31 @@ func explosion(pos: Vector2, radius: float) -> void:
 
 func text(pos: Vector2, s: String, col: Color, big: bool = false) -> void:
 	_texts.append({"pos": pos, "text": s, "col": col, "life": 0.9, "big": big})
+	if recorder.is_valid():
+		recorder.call(["t", pos, s, col, big])
 
 
 func number(pos: Vector2, dmg: float) -> void:
 	var c := Color(1, 1, 1).lerp(Color("ff5a5a"), clampf(dmg / 20.0, 0.0, 1.0))
 	_texts.append({"pos": pos, "text": str(int(round(dmg))), "col": c, "life": 0.6, "big": false, "small": true})
+	if recorder.is_valid():
+		recorder.call(["n", pos, dmg])
 
 
 func afterimage(f: CatFighter) -> void:
-	_after.append({"pos": f.global_position, "life": 0.25, "col": Pal.player_color(f.slot), "facing": f.facing})
+	_add_after(f.global_position, Pal.player_color(f.slot), f.facing)
+
+
+func _add_after(pos: Vector2, col: Color, facing: int) -> void:
+	_after.append({"pos": pos, "life": 0.25, "col": col, "facing": facing})
+	if recorder.is_valid():
+		recorder.call(["a", pos, col, facing])
+
+
+func _add_ghost(pos: Vector2, icon: String, vel: Vector2, life: float) -> void:
+	_ghosts.append({"pos": pos, "life": life, "icon": icon, "vel": vel})
+	if recorder.is_valid():
+		recorder.call(["g", pos, icon, vel, life])
 
 
 func ko_effect(f: CatFighter) -> void:
@@ -136,7 +156,7 @@ func ko_effect(f: CatFighter) -> void:
 			stars(p, 10)
 		"fishbone":
 			for i in 4:
-				_ghosts.append({"pos": p + Vector2(i * 4 - 6, 0), "life": 1.2, "icon": "fish", "vel": Vector2(_rng.randf_range(-40, 40), -60)})
+				_add_ghost(p + Vector2(i * 4 - 6, 0), "fish", Vector2(_rng.randf_range(-40, 40), -60), 1.2)
 		"confetti":
 			for i in _count(30):
 				var v := Vector2(_rng.randf_range(-120, 120), _rng.randf_range(-220, -60))
@@ -144,13 +164,26 @@ func ko_effect(f: CatFighter) -> void:
 		"poof":
 			smoke(p, 14, Color(0.9, 0.9, 0.95, 0.8))
 		_:
-			_ghosts.append({"pos": p, "life": 1.4, "icon": "ghost", "vel": Vector2(0, -30)})
+			_add_ghost(p, "ghost", Vector2(0, -30), 1.4)
 	burst(p, Pal.player_color(f.slot), 12, 150.0)
 
 
 func shake(amount: float) -> void:
+	if recorder.is_valid():
+		recorder.call(["s", amount])
 	if ctl and ctl.camera:
 		ctl.camera.add_shake(amount)
+
+
+## Client of a LAN game: replay one recorded primitive.
+func replay(ev: Array) -> void:
+	match str(ev[0]):
+		"e": emit(ev[1], ev[2], ev[3], ev[4], ev[5], ev[6], ev[7])
+		"t": text(ev[1], ev[2], ev[3], ev[4])
+		"n": number(ev[1], ev[2])
+		"a": _add_after(ev[1], ev[2], ev[3])
+		"g": _add_ghost(ev[1], ev[2], ev[3], ev[4])
+		"s": shake(ev[1])
 
 
 # -------------------------------------------------------------- update

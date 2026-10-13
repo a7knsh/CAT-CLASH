@@ -18,6 +18,7 @@ const SCREENS := {
 	"controls": "res://scripts/ui/controls_screen.gd",
 	"credits": "res://scripts/ui/credits_screen.gd",
 	"tournament": "res://scripts/ui/tournament_screen.gd",
+	"net": "res://scripts/ui/net_screen.gd",
 }
 
 var root: Node

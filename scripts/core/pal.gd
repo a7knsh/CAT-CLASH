@@ -17,10 +17,10 @@ const UI_GOOD := Color("6af08a")
 const UI_ACCENT := Color("ff7ab8")
 const UI_LOCK := Color("5a5070")
 
-const PLAYER_COLORS := [Color("ff5d5d"), Color("4fa8ff"), Color("ffd23f"), Color("5fe07a"), Color("c37bff"), Color("ff9f43"), Color("3fe0e0"), Color("ff7ad0")]
+const PLAYER_COLORS := [Color("ff5d5d"), Color("4fa8ff"), Color("ffd23f"), Color("5fe07a"), Color("c37bff"), Color("ff9f43"), Color("3fe0e0"), Color("ff7ad0"), Color("b8e05a"), Color("e8e8f0")]
 ## Okabe-Ito based colour-blind safe set.
-const PLAYER_COLORS_CB := [Color("e69f00"), Color("56b4e9"), Color("f0e442"), Color("cc79a7"), Color("009e73"), Color("d55e00"), Color("0072b2"), Color("ffffff")]
-const PLAYER_SHAPES := ["▲", "●", "■", "◆", "★", "♥", "¤", "×"]
+const PLAYER_COLORS_CB := [Color("e69f00"), Color("56b4e9"), Color("f0e442"), Color("cc79a7"), Color("009e73"), Color("d55e00"), Color("0072b2"), Color("ffffff"), Color("a0a0a0"), Color("9a6aff")]
+const PLAYER_SHAPES := ["▲", "●", "■", "◆", "★", "♥", "¤", "×", "♪", "✓"]
 
 const TEAM_COLORS := [Color("ff6a4a"), Color("4a9aff"), Color("ffd040"), Color("60e070")]
 const TEAM_COLORS_CB := [Color("d55e00"), Color("0072b2"), Color("f0e442"), Color("009e73")]

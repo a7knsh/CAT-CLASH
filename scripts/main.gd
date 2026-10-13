@@ -25,6 +25,9 @@ func _ready() -> void:
 		if a == "--shots":
 			add_child(load("res://scripts/dev/screenshot_tour.gd").new())
 			return
+		if a.begins_with("--nettest="):
+			add_child(load("res://scripts/dev/net_test.gd").new())
+			return
 		if a == "--bench":
 			add_child(load("res://scripts/dev/bench.gd").new())
 			return

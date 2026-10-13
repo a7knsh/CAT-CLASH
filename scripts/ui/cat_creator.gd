@@ -2,7 +2,7 @@ extends Screen
 ## Cat Creator: build custom fighters with a live animated preview. Tabs for
 ## coat, face, gear and style; presets can be saved, renamed, duplicated and
 ## deleted. Built-in roster cats are read-only (saving makes a copy).
-## Cosmetics never alter hitboxes or stats — body size is visual only.
+## Cosmetics never alter hitboxes or stats - body size is visual only.
 
 const TABS := ["COAT", "FACE", "GEAR", "STYLE", "PRESETS"]
 const LETTERS := "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -!?"

@@ -166,7 +166,7 @@ const ALL := {
 		"music": {"tempo": 100, "root": 55, "scale": "lydian", "seed": 113},
 	},
 	"garden": {
-		"name": "GARDEN DOJO", "desc": "Peaceful stones and bamboo. No hazards — pure skill.",
+		"name": "GARDEN DOJO", "desc": "Peaceful stones and bamboo. No hazards - pure skill.",
 		"tags": "COMPETITIVE · NO HAZARDS", "size": Vector2(640, 360), "blast": Vector2(160, 150), "gravity": 1.0,
 		"solids": [Rect2(90, 270, 460, 90)],
 		"platforms": [Rect2(150, 210, 80, 6), Rect2(410, 210, 80, 6), Rect2(280, 158, 80, 6)],

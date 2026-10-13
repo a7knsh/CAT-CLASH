@@ -1,6 +1,6 @@
 extends "res://scripts/gameplay/modes/mode_stock.gd"
 ## Weapon Roulette: Stock rules, but every few seconds every cat is handed a
-## new random weapon. No item drops — the roulette is the only supply.
+## new random weapon. No item drops - the roulette is the only supply.
 
 var swap_t := 3.0
 
@@ -35,3 +35,7 @@ func tick(dt: float) -> void:
 
 func hud_top() -> String:
 	return "ROULETTE · NEXT SWAP %d" % int(ceil(swap_t))
+
+
+func net_vars() -> Array:
+	return ["swap_t"]

@@ -69,12 +69,13 @@ func tick(dt: float) -> void:
 			bb = bb.expand(Vector2(clampf(bb.get_center().x, anchor_x0, anchor_x1), anchor.y - 30.0))
 		bb = bb.grow_individual(70, 80, 70, 50)
 		# Leave room for the HUD panels along the bottom of the screen.
-		tz = clampf(minf(480.0 / bb.size.x, 236.0 / bb.size.y), min_zoom, max_zoom)
-		target = bb.get_center() + Vector2(0, 17.0 / tz)
+		var hud_h: float = ctl.hud.height() if ctl.hud else 29.0
+		tz = clampf(minf(480.0 / bb.size.x, (265.0 - hud_h) / bb.size.y), min_zoom, max_zoom)
+		target = bb.get_center() + Vector2(0, hud_h * 0.5 / tz)
 	# Keep the view mostly inside the arena (with a little air for blast zones).
 	var half := Vector2(240, 135) / tz
 	var lo := Vector2(-60, -90) + half
-	var hi := size + Vector2(60, 30 + 34.0 / tz) - half
+	var hi := size + Vector2(60, 30 + (ctl.hud.height() if ctl.hud else 29.0) / tz) - half
 	if lo.x > hi.x:
 		target.x = size.x * 0.5
 	else:

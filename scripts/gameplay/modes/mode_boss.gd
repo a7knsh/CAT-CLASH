@@ -72,3 +72,7 @@ func extra_progress() -> Dictionary:
 
 func _rank_score(f: CatFighter) -> float:
 	return f.stats.damage_dealt
+
+
+func net_vars() -> Array:
+	return ["won"]

@@ -40,8 +40,22 @@ and final art and audio quality (see "Limitations").
 - **Spawning:** weapons drop from the sky, from crates with parachutes, and as arena props.
 - **Match rules:** weapon sets (all, melee, ranged, funny, classic, none) and start-weapon rules.
 
+### Network multiplayer (LAN)
+- **Up to 10 fighters across any number of devices** on the same LAN or Wi-Fi, mixed with local players and CPUs.
+- **Host-authoritative:** the host simulates everything.
+  - Clients stream input every frame.
+  - The host streams compressed ~30 Hz snapshots (about 0.8 KB for 10 fighters) plus reliable event batches (effects, sounds, hit reactions, late-spawned fighters).
+  - Clients dead-reckon between snapshots for smooth motion.
+- **Discovery:** UDP broadcast beacons; joining by IP also works. Version check on join.
+- **Shared lobby:** the host controls mode, CPUs and match setup. Everyone picks a cat and team and readies up from their own device.
+- **Robustness:**
+  - A client that leaves mid-match has its cats taken over by CPUs.
+  - If the host leaves, everyone returns to the menu with a message.
+  - Late joiners spectate the current match and can play in the next one.
+- **Stats and rewards:** each device records only its own players' stats and rewards.
+
 ### Local multiplayer
-- **Devices:** up to 4 fighters from 2 keyboard halves, any number of gamepads, or a mix. CPUs fill seats.
+- **Devices:** up to 10 fighters on one device from 2 keyboard halves, any number of gamepads, or a mix. CPUs fill seats.
 - **Lobby:** join, leave and ready up per device; cat, team and profile choice per slot; HEAVY/TAUNT add or remove CPUs.
 - **In match:**
   - Shared dynamic camera with smooth zoom, a HUD margin, a stage anchor, and off-screen indicator bubbles.
@@ -146,19 +160,30 @@ Each arena has its own layered parallax backdrop, ambient particles and seeded m
 4. **Windows was not run during development.** It uses the same engine and
    code paths, and the export preset is included. The Linux build was
    tested.
-5. **Split-screen is not implemented.** The design uses a shared camera on
+5. **LAN only.** There's no internet matchmaking or NAT traversal. Playing over
+   the internet needs a VPN that puts players on one virtual LAN (for example
+   ZeroTier or Tailscale) plus direct IP. Training and Tournament are local-only
+   modes. Clients see their actions with one host round-trip of delay. That's
+   negligible on a LAN, but there's no client-side prediction.
+6. **Networking was tested on one machine over localhost.** The automated
+   tests covered:
+   - a host with 1–3 clients;
+   - 10-fighter matches;
+   - a client leaving mid-match.
+
+   Real multi-device Wi-Fi sessions still need a hands-on check.
+7. **Split-screen is not implemented.** The design uses a shared camera on
    purpose, as the brief preferred.
-6. **CPU skill is decent, not perfect.** CPUs sometimes miss tricky jumps
+8. **CPU skill is decent, not perfect.** CPUs sometimes miss tricky jumps
    (for example the Pirate Ship crow's nest) or fall into pits under pressure.
-7. **There is no online play,** by design (local-first). Leaderboards and
-   cloud saves are also absent.
-8. **Content still to add (the architecture supports it):**
+9. **No leaderboards or cloud saves.**
+10. **Content still to add (the architecture supports it):**
    - More arenas: the design targets 20; 12 are done.
    - More boss types.
    - A dedicated slope or ledge-grab system. Platforms are flat; edges use wall-cling and wall-jump instead.
    - Per-weapon unique animations beyond archetype arcs.
    - More seasonal cosmetics.
-9. **The UI is a fixed 480×270 canvas** scaled to the window. Text size is
+11. **The UI is a fixed 480×270 canvas** scaled to the window. Text size is
    readable at 720p and above. Only the HUD has a large-size option.
 
 ## Roadmap

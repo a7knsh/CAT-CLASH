@@ -24,7 +24,7 @@ func _rebuild() -> void:
 	menu.add("new", "NEW PROFILE")
 	menu.add("rename", "RENAME PROFILE")
 	menu.add("delete", "DELETE PROFILE", "button", "", {"disabled": SaveData.profiles().size() <= 1, "color": Pal.UI_BAD})
-	menu.add("", "— SAVE DATA —", "label")
+	menu.add("", "- SAVE DATA -", "label")
 	menu.add("backup", "EXPORT BACKUP", "button", "", {"hint": "Writes a copy of your save to the backups folder."})
 	menu.add("restore", "RESTORE LATEST BACKUP", "button", "", {"hint": "Replaces current progress with the newest backup."})
 	menu.add("folder", "OPEN SAVE FOLDER")

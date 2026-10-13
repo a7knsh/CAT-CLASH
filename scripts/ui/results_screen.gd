@@ -35,10 +35,20 @@ func _build() -> void:
 	menu.line_h = 13
 	menu.max_visible = 3
 	var tour: bool = not Router.tournament.is_empty()
-	if not tour:
-		menu.add("rematch", "REMATCH")
-		menu.add("setup", "CHANGE SETUP")
-	menu.add("menu", "MAIN MENU")
+	if Net.active:
+		if Net.is_host:
+			menu.add("net_rematch", "REMATCH (EVERYONE)")
+			menu.add("net_lobby", "BACK TO LOBBY")
+			menu.add("net_end", "END LAN SESSION", "button", "", {"color": Pal.UI_BAD})
+		else:
+			menu.add("net_wait", "WAITING FOR HOST...", "button", "", {"disabled": true})
+			menu.add("net_leave", "LEAVE GAME", "button", "", {"color": Pal.UI_BAD})
+			menu.index = 1
+	else:
+		if not tour:
+			menu.add("rematch", "REMATCH")
+			menu.add("setup", "CHANGE SETUP")
+		menu.add("menu", "MAIN MENU")
 	AudioHub.play("victory", -2.0)
 	AudioHub.play_music("menu", {"tempo": 128, "root": 60, "scale": "major", "seed": 7})
 
@@ -65,13 +75,22 @@ func _make_awards(players: Array) -> void:
 
 func _on_menu(r: Dictionary) -> void:
 	if r.action == "back":
-		_go("menu")
+		if not Net.active:
+			_go("menu")
 	elif r.action == "activate":
 		_go(r.id)
 
 
 func _go(id: String) -> void:
 	match id:
+		"net_rematch":
+			var ses: Dictionary = Net.current_session.duplicate(true)
+			Net.start_match(ses)
+		"net_lobby":
+			Net.return_to_lobby()
+		"net_end", "net_leave":
+			Net.leave()
+			Router.goto("main_menu")
 		"rematch":
 			Router.session = res.get("session", Router.session)
 			Router.goto("match")

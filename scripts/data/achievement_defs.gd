@@ -2,7 +2,7 @@ class_name AchievementDefs
 extends RefCounted
 ## Achievements and training milestones. Each checks a progress counter in
 ## SaveData.data.progress (summed across all local profiles) against `target`.
-## `reward` is yarn (the unlock currency earned by playing) — cosmetic rewards
+## `reward` is yarn (the unlock currency earned by playing) - cosmetic rewards
 ## are declared on the cosmetic itself with unlock "ach:<id>".
 
 const ALL := {

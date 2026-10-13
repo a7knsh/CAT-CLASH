@@ -26,6 +26,7 @@ func _ready() -> void:
 		["ffa", 2], ["ffa", 3], ["ffa", 4], ["team", 4], ["duel", 2], ["stock", 4], ["timed", 3],
 		["roulette", 4], ["koth", 4], ["capture", 4], ["survival", 2], ["boss", 3], ["chaos", 4], ["training", 1],
 		["stock", 2], ["ffa", 4], ["team", 2], ["capture", 2], ["survival", 1], ["boss", 1], ["koth", 2], ["stock", 3],
+		["ffa", 10], ["team", 10], ["capture", 10], ["boss", 10], ["chaos", 10],
 	]
 	var i := 0
 	for p in plan:

@@ -24,6 +24,7 @@ SaveData="*res://scripts/autoload/save_data.gd"
 InputHub="*res://scripts/autoload/input_hub.gd"
 AudioHub="*res://scripts/autoload/audio_hub.gd"
 Router="*res://scripts/autoload/router.gd"
+Net="*res://scripts/autoload/net_hub.gd"
 
 [display]
 

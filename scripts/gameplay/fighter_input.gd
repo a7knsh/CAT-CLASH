@@ -14,6 +14,18 @@ var enabled := true
 func pull_from_hub() -> void:
 	if device == "" or not enabled:
 		return
+	if device.begins_with("net:"):
+		# Remote player on another device (host side of a LAN game).
+		var r: Dictionary = Net.remote_frame(device)
+		if r.is_empty():
+			move = Vector2.ZERO
+			_held.clear()
+			_just.clear()
+			return
+		move = r.move
+		_held = r.held
+		_just = r.just
+		return
 	move = InputHub.move_vector(device)
 	for a in InputHub.ACTIONS:
 		_held[a] = InputHub.held(device, a)

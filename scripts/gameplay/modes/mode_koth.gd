@@ -149,3 +149,7 @@ func _slot_for_key(k: int) -> int:
 		if key_of(f) == k:
 			return f.slot
 	return 0
+
+
+func net_vars() -> Array:
+	return ["zones", "zone", "zone_idx", "move_t", "owner_key", "points", "time_left"]

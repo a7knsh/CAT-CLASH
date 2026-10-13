@@ -1,7 +1,7 @@
 extends BaseMode
 ## Capture the Fish: two teams, one golden fish. Grab it (pick-up button),
 ## carry it to your team's basket to score. Carriers are slower, can't attack
-## with weapons, drop it when hit hard — and can THROW it to a teammate.
+## with weapons, drop it when hit hard - and can THROW it to a teammate.
 
 var bases: Array = []      # [Vector2 team0, Vector2 team1]
 var fish: WeaponItem = null
@@ -215,3 +215,7 @@ func draw_world(ci: CanvasItem, t: float) -> void:
 	var cr := carrier()
 	if cr:
 		PixelFont.draw_outlined(ci, cr.global_position + Vector2(0, -44), "¤", Color("ffd23f"))
+
+
+func net_vars() -> Array:
+	return ["bases", "team_score", "time_left", "fish_home"]

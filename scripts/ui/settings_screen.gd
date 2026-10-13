@@ -62,7 +62,7 @@ func _rebuild() -> void:
 	menu.clear()
 	for r in ROWS:
 		if r[0] == "label":
-			menu.add("", "— " + r[1] + " —", "label")
+			menu.add("", "- " + r[1] + " -", "label")
 		else:
 			menu.add(r[0], r[1], "choice", _value_text(r[0], r[2]), {"hint": HINTS.get(r[0], ""), "kind2": r[2]})
 	menu.add("controls", "CONTROLS & KEY BINDINGS...", "button", "", {"hint": "Remap keyboard halves and gamepads."})
