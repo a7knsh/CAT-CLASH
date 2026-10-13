@@ -56,7 +56,10 @@ func _build() -> void:
 	var keep := menu.index
 	menu.clear()
 	if ctl.disconnect_msg != "":
-		menu.add("cpu", "CONTINUE WITH CPU")
+		if not _net():
+			menu.add("cpu", "CONTINUE WITH CPU")
+		elif Net.is_host:
+			menu.add("drop", "CONTINUE WITHOUT THEM")
 		menu.add("resume", "RESUME (RECONNECTED)")
 	else:
 		menu.add("resume", "RESUME")
@@ -125,6 +128,9 @@ func _handle(r: Dictionary) -> void:
 					close_menu()
 				"cpu":
 					ctl.convert_to_bot(paused_by)
+					close_menu()
+				"drop":
+					ctl.remove_player(paused_by)
 					close_menu()
 				"restart":
 					close_menu()

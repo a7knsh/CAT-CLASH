@@ -117,6 +117,9 @@ func _build_font() -> FontFile:
 	f.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
 	f.generate_mipmaps = false
 	f.allow_system_fallback = false
+	# Always rasterise at the base size and let the canvas scale it, so
+	# non-integer window sizes (1366x768, 1600x900...) still find glyphs.
+	f.oversampling = 1.0
 	var keys: Array = GLYPHS.keys()
 	var cols := 16
 	var rows := int(ceil(keys.size() / float(cols)))

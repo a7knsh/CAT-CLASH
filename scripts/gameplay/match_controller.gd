@@ -298,6 +298,10 @@ func _start_round() -> void:
 	var same_weapon := WeaponDefs.pick_random(rules.get("weapon_set", "all"), rng)
 	var i := 0
 	for f in players():
+		if f.departed:
+			f.eliminated = true
+			f.vanish()
+			continue
 		f.eliminated = false
 		f.stocks = int(rules.get("stocks", 3))
 		var sp: Vector2 = pts[i % pts.size()]
@@ -1071,6 +1075,8 @@ func _spawn_items(dt: float) -> void:
 
 func spawn_powerup(pos: Vector2, kind: String = "") -> void:
 	var kinds: Array = PowerUp.TYPES.keys()
+	if net_host:
+		kinds.erase("decoy")  # the decoy clone is CPU-driven; LAN is players-only
 	if kind == "":
 		kind = kinds[rng.randi_range(0, kinds.size() - 1)]
 	var pu := PowerUp.new()
@@ -1318,6 +1324,15 @@ func convert_to_bot(device: String) -> void:
 			f.input.device = ""
 			f.brain = BotBrain.new(f, int(rules.get("bot_level", 1)))
 			f.display_name = f.display_name + "*"
+	disconnect_msg = ""
+
+
+## LAN host: a local controller is gone and the players chose to go on
+## without that player (no CPU takeover in LAN games).
+func remove_player(device: String) -> void:
+	for f in players():
+		if f.device == device and not f.is_bot and not f.departed:
+			_depart(f)
 	disconnect_msg = ""
 
 
@@ -1652,11 +1667,25 @@ func _local_view(summary: Dictionary) -> Dictionary:
 	return out
 
 
-## Host: a client device left mid-match - its cats keep fighting as CPUs.
+## Host: a client device left mid-match. LAN games are players-only, so its
+## cats leave the fight instead of being handed to a CPU.
 func on_peer_left(peer: int) -> void:
 	for f in fighters:
-		if f.owner_peer == peer and not f.is_bot:
-			f.is_bot = true
-			f.input.device = ""
-			f.brain = BotBrain.new(f, int(rules.get("bot_level", 1)))
-			f.display_name = f.display_name.substr(0, 10) + "*"
+		if f.owner_peer == peer and not f.is_bot and not f.departed:
+			_depart(f)
+
+
+## Takes a player out of the match for good: drops what they hold, marks
+## them LEFT and eliminates them. The match carries on without them.
+func _depart(f: CatFighter) -> void:
+	f.departed = true
+	f.input.device = ""
+	f.display_name = f.display_name.substr(0, 8) + " (LEFT)"
+	if not f.weapon.is_empty():
+		f.drop_weapon(false)
+	if mode:
+		mode._eliminate(f)
+	f.eliminated = true
+	f.respawn_timer = -1.0
+	if not f.dead:
+		f.vanish()

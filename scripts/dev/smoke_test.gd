@@ -15,12 +15,18 @@ var results: Array = []
 var stuck: Dictionary = {}
 var problems: Array = []
 var only := ""
+var only_arena := ""
+var only_count := 0
 
 
 func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			only = a.substr(7)
+		if a.begins_with("--arena="):
+			only_arena = a.substr(8)
+		if a.begins_with("--count="):
+			only_count = int(a.substr(8))
 	var arenas: Array = ArenaDefs.ORDER
 	var plan := [
 		["ffa", 2], ["ffa", 3], ["ffa", 4], ["team", 4], ["duel", 2], ["stock", 4], ["timed", 3],
@@ -32,9 +38,13 @@ func _ready() -> void:
 	for p in plan:
 		if only != "" and p[0] != only:
 			continue
+		if only_count > 0 and p[1] != only_count:
+			continue
 		var arena: String = arenas[i % arenas.size()]
 		if p[0] == "boss":
 			arena = "neon" if i % 2 == 0 else "garden"
+		if only_arena != "":
+			arena = only_arena
 		cases.append({"mode": p[0], "count": p[1], "arena": arena})
 		i += 1
 	_test_save_roundtrip()
@@ -86,7 +96,9 @@ func _next() -> void:
 	var c: Dictionary = cases[idx]
 	var s := Sessions.quick_session(c.mode, c.arena, c.count, true)
 	s["smoke"] = true
-	s.rules["rounds"] = 2
+	# Round modes need 2 round wins; with 10 cats that can take 7+ rounds,
+	# so big lobbies play a single round to keep the run time bounded.
+	s.rules["rounds"] = 2 if c.count < 6 else 1
 	s.rules["stocks"] = 2
 	s.rules["time"] = 60
 	s.rules["hill_target"] = 30

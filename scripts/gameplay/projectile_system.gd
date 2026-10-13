@@ -71,6 +71,9 @@ func tick(dt: float) -> void:
 	for p in list:
 		if p.dead:
 			continue
+		# The shooter may have been freed (e.g. a defeated survival enemy).
+		if p.owner != null and not is_instance_valid(p.owner):
+			p.owner = null
 		p.age += dt
 		p.life -= dt
 		if p.life <= 0.0:
@@ -156,7 +159,7 @@ func _check_hits(p: Proj) -> void:
 				continue
 			if not f.targetable():
 				continue
-			if not p.hostile_all and p.owner and not ctl.can_damage(p.owner, f):
+			if not p.hostile_all and is_instance_valid(p.owner) and not ctl.can_damage(p.owner, f):
 				continue
 		elif tgt.has_method("is_enemy_of") and p.owner and not tgt.is_enemy_of(p.owner) and not p.hostile_all:
 			continue

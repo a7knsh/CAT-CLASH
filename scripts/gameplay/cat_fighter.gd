@@ -41,6 +41,8 @@ var is_decoy := false
 var nid := -1
 ## Owning device's peer id in LAN games (1 = host).
 var owner_peer := 1
+## True once this LAN player's device has left the game.
+var departed := false
 var decoy_life := 0.0
 var device := ""
 var input := FighterInput.new()

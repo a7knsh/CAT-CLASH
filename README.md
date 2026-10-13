@@ -44,12 +44,12 @@ No import step, plugins or extra downloads are required.
 3. Everyone else chooses **LAN PARTY** and picks the host from **GAMES ON YOUR NETWORK**. They can also use **JOIN BY IP** with the address shown on the host's LAN PARTY screen.
 4. In the lobby, every player presses **JUMP / A** on their own device to take a slot. A device can add more players with its other keyboard half or extra gamepads.
 5. Each player picks a cat and team, then readies up.
-6. The host can add CPU fighters (HEAVY), remove them (TAUNT) and change the mode (BLOCK / DODGE). When everyone is ready, the host picks the arena and rules and starts the match.
+6. The host changes the mode (BLOCK / DODGE). When everyone is ready, the host picks the arena and rules and starts the match.
 
-There can be **up to 10 fighters in total** across all devices.
+There can be **up to 10 players in total** across all devices. **LAN games are players-only: there are no CPU fighters** (Survival and Boss Battle still have their enemies). CPUs are only for offline play on one device.
 
 - **How it works:** the host's device simulates the match and streams it to everyone else. Clients just send their controller input, so there's no desync.
-- **If a device drops out mid-match,** its cats keep fighting as CPUs.
+- **If a device drops out mid-match,** its cats leave the fight and the match carries on with everyone else.
 - **If the host quits,** everyone returns to the menu.
 - **Firewall:** the game uses **UDP port 47810** for play and **47811** for discovery. If nobody can find or join the host, allow the game through the firewall on *private* networks.
 - **Local only:** Training and Tournament.
@@ -57,6 +57,8 @@ There can be **up to 10 fighters in total** across all devices.
 ---
 
 ## Controls (all remappable in Settings → Controls)
+
+Each action has a **primary and an alternate** binding. In Settings → Controls pick a slot with left/right, confirm, then press the new key or button (Esc cancels, Delete or HEAVY clears a slot). A key already used elsewhere swaps places, even across the two keyboard halves.
 
 | Action            | Keyboard Left | Keyboard Right            | Gamepad          |
 |-------------------|---------------|---------------------------|------------------|
@@ -86,7 +88,7 @@ into the floor or a wall to **tech** and recover instantly.
 - **1–10 player multiplayer:**
   - LAN play across any number of devices (host-authoritative, auto-discovery or direct IP).
   - Players can also share one device with two keyboard halves and gamepads, combined with LAN play however you like.
-  - Hot-plugging, controller-disconnect handling, and CPU opponents at 4 difficulty levels.
+  - Hot-plugging, controller-disconnect handling, and CPU opponents at 4 difficulty levels for offline play.
 - **13 game modes:** Free-for-All, 2v2 Teams, 1v1 Duel, Stock, Timed, Weapon
   Roulette, King of the Hill, Capture the Fish, Survival (co-op or competitive
   waves), Boss Battle (the two-phase MECHA-MOUSER 9000), Chaos, Training and
@@ -117,10 +119,11 @@ into the floor or a wall to **tech** and recover instantly.
   - A trophy cabinet and a shop where you spend yarn you earn by playing.
   - Cosmetics never affect gameplay.
 - **Accessibility:**
-  - Remappable controls, plus stick deadzone and sensitivity settings.
+  - Remappable controls (two bindings per action, triggers bindable on pads), plus stick deadzone and sensitivity settings.
   - Screen shake slider, reduce-flashing option and simplified effects.
   - Colour-blind palette; player and team shapes so nothing relies on colour alone.
   - Large HUD, damage-number toggle, bot difficulty, and adjustable lives, time and rounds.
+- **Display settings:** windowed, borderless, fullscreen or exclusive fullscreen; resolutions from 960x540 to 4K; smooth or pixel-perfect scaling; VSync; FPS limit.
 
 See [docs/FEATURES_AND_LIMITATIONS.md](docs/FEATURES_AND_LIMITATIONS.md) for
 the full list and known limitations.

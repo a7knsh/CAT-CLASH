@@ -206,6 +206,10 @@ func _join(device: String) -> void:
 
 
 func _add_bot() -> void:
+	if Net.active:
+		_say("LAN GAMES ARE PLAYERS ONLY - NO CPUS")
+		AudioHub.play("ui_error")
+		return
 	if _mode_id() == "training":
 		_say("TRAINING USES DUMMIES")
 		return
@@ -254,6 +258,8 @@ func _valid_setup() -> String:
 	var n := _count()
 	var md := _mdef()
 	if n < int(md.min):
+		if Net.active:
+			return "NEED %d+ PLAYERS - INVITE MORE DEVICES" % int(md.min)
 		return "NEED %d+ FIGHTERS (HEAVY ADDS A CPU)" % int(md.min)
 	if n > Net.mode_max():
 		return "MAX %d FIGHTERS IN THIS MODE" % Net.mode_max()
@@ -316,10 +322,15 @@ func _paint() -> void:
 		_draw_slot(i, s[i])
 	# Bottom buttons
 	var labels := ["+ CPU" if not _local_slots().is_empty() else "JOIN", "- CPU", "◄ MODE ►", "BACK", "START"]
+	if Net.active:
+		labels[0] = "JOIN" if _local_slots().is_empty() else "PLAYERS ONLY"
+		labels[1] = "NO CPUS"
 	var rects := [Rect2(6, 234, 74, 14), Rect2(84, 234, 74, 14), Rect2(162, 234, 156, 14), Rect2(322, 234, 74, 14), Rect2(400, 234, 74, 14)]
 	for k in 5:
 		var host_only := k in [1, 2, 4] or (k == 0 and not _local_slots().is_empty())
 		var enabled := Net.is_host or not host_only
+		if Net.active and (k == 1 or (k == 0 and not _local_slots().is_empty())):
+			enabled = false
 		var fill := Pal.UI_PANEL2
 		if k == 4 and _all_ready() and Net.is_host:
 			fill = Color("2a6a3a")
@@ -337,7 +348,12 @@ func _paint() -> void:
 	elif status == "":
 		status = "READY UP: CONFIRM ON READY"
 	PixelFont.draw_text(self, Vector2(240, 250), status, Pal.UI_HILITE if _all_ready() else Pal.UI_TEXT, 1, 1)
-	UI.hints(self, "JOIN: JUMP/A · LEAVE: THROW/B" + (" · CPU +/-: HEAVY/TAUNT · MODE: BLOCK/DODGE" if Net.is_host else ""))
+	var hint := "JOIN: JUMP/A · LEAVE: THROW/B"
+	if Net.active:
+		hint += " · PLAYERS ONLY" + (" · MODE: BLOCK/DODGE" if Net.is_host else "")
+	elif Net.is_host:
+		hint += " · CPU +/-: HEAVY/TAUNT · MODE: BLOCK/DODGE"
+	UI.hints(self, hint)
 
 
 func _draw_slot(i: int, sl: Dictionary) -> void:

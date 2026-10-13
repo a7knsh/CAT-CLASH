@@ -336,7 +336,7 @@ func _defend() -> void:
 	for pr in f.ctl.proj.list:
 		if pr.owner == f or pr.dead:
 			continue
-		if pr.owner and not f.ctl.can_damage(pr.owner, f):
+		if is_instance_valid(pr.owner) and not f.ctl.can_damage(pr.owner, f):
 			continue
 		var to: Vector2 = me - pr.pos
 		if to.length() < 70.0 and pr.vel.dot(to) > 0.0:

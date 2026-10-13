@@ -41,15 +41,15 @@ and final art and audio quality (see "Limitations").
 - **Match rules:** weapon sets (all, melee, ranged, funny, classic, none) and start-weapon rules.
 
 ### Network multiplayer (LAN)
-- **Up to 10 fighters across any number of devices** on the same LAN or Wi-Fi, mixed with local players and CPUs.
+- **Up to 10 players across any number of devices** on the same LAN or Wi-Fi. Several players can share one device. **LAN games are players-only: no CPU fighters** (Survival and Boss still have their enemy waves and boss).
 - **Host-authoritative:** the host simulates everything.
   - Clients stream input every frame.
   - The host streams compressed ~30 Hz snapshots (about 0.8 KB for 10 fighters) plus reliable event batches (effects, sounds, hit reactions, late-spawned fighters).
   - Clients dead-reckon between snapshots for smooth motion.
 - **Discovery:** UDP broadcast beacons; joining by IP also works. Version check on join.
-- **Shared lobby:** the host controls mode, CPUs and match setup. Everyone picks a cat and team and readies up from their own device.
+- **Shared lobby:** the host controls mode and match setup. Everyone picks a cat and team and readies up from their own device.
 - **Robustness:**
-  - A client that leaves mid-match has its cats taken over by CPUs.
+  - A client that leaves mid-match has its cats removed from the fight (marked LEFT); the match carries on with the remaining players.
   - If the host leaves, everyone returns to the menu with a message.
   - Late joiners spectate the current match and can play in the next one.
 - **Stats and rewards:** each device records only its own players' stats and rewards.
@@ -61,7 +61,7 @@ and final art and audio quality (see "Limitations").
   - Shared dynamic camera with smooth zoom, a HUD margin, a stage anchor, and off-screen indicator bubbles.
   - Player colours plus shapes (▲●■◆), team colours plus dashed or solid team rings, and staggered name tags.
   - Pause from any player; the pause menu has a restart option.
-- **Disconnects:** a controller disconnect pauses the game; you can continue with a CPU or reconnect.
+- **Disconnects:** a controller disconnect pauses the game; you can continue with a CPU or reconnect (in LAN games the host can continue without that player instead).
 - **CPU AI** at 4 difficulty levels:
   - Navigation: gap jumping, platform climbing, drop-through, recovery after being launched, hazard avoidance.
   - Combat: item pickup, ranged spacing, combos, blocking, parrying, dodging, throwing.
@@ -140,10 +140,11 @@ Each arena has its own layered parallax backdrop, ambient particles and seeded m
   - Music ducking on KOs and slow motion on round-deciding KOs.
 
 ### Accessibility and settings
-- Remappable controls for each keyboard half and for gamepads (bindings swap on conflict), stick deadzone and sensitivity, rumble toggle.
+- Remappable controls for each keyboard half and for gamepads: a primary and an alternate binding per action, clear a slot, bindings swap on conflict (also across the two keyboard halves), reset one device or all. Gamepad triggers (LT/RT) can be bound. Stick deadzone and sensitivity, rumble toggle.
 - Screen shake slider, reduce flashing, simplified effects, colour-blind palette (Okabe-Ito) with shapes always shown, large HUD, damage-number toggle.
 - Default bot difficulty; adjustable lives, time, rounds, HP, items, power-ups, hazards and friendly fire.
-- Volume sliders for master, music and SFX; fullscreen (F11 / Alt+Enter); window scale; VSync; FPS counter.
+- Volume sliders for master, music and SFX.
+- Display: windowed, borderless window, fullscreen or exclusive fullscreen (F11 / Alt+Enter toggles); window resolution from 960x540 to 3840x2160 plus your monitor's size; smooth or pixel-perfect (integer) scaling; VSync; FPS limit (30-240 or unlimited); FPS counter.
 
 ## Known limitations
 

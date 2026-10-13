@@ -39,7 +39,13 @@ func _rebuild() -> void:
 			continue
 		if r == "friendly_fire" and mdef.teams == "optional" and not bool(rules.get("teams_on", false)):
 			continue
-		menu.add(r, ModeDefs.RULES[r].label, "choice", ModeDefs.rule_label(r, rules.get(r)))
+		# LAN is players-only; difficulty only matters for Survival/Boss enemies.
+		if r == "bot_level" and Net.active and not (mode_id in ["survival", "boss"]):
+			continue
+		var lbl: String = ModeDefs.RULES[r].label
+		if r == "bot_level" and mode_id in ["survival", "boss"]:
+			lbl = "ENEMY DIFFICULTY"
+		menu.add(r, lbl, "choice", ModeDefs.rule_label(r, rules.get(r)))
 	menu.add("start", "START!" if mode_id != "tournament" else "CREATE BRACKET", "button", "", {"color": Pal.UI_GOOD})
 	menu.add("back", "BACK")
 	menu.index = clampi(keep, 0, menu.items.size() - 1)

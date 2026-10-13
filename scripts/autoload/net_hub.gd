@@ -285,7 +285,8 @@ func _apply(sender: int, action: String, d: Dictionary) -> void:
 				if k in ["skin", "preset", "name", "mastery", "team", "ready", "profile"]:
 					slots[i3][k] = d[k]
 		"add_bot":
-			if sender != 1 or count_fighters() >= mode_max():
+			# LAN games are players-only: no CPU fighters.
+			if sender != 1 or active or count_fighters() >= mode_max():
 				return
 			for i in slots.size():
 				if slots[i].kind == "empty":
@@ -311,6 +312,10 @@ func _apply(sender: int, action: String, d: Dictionary) -> void:
 			if sender != 1:
 				return
 			lobby.mode = d.get("mode", "ffa")
+			if active:
+				for i in slots.size():
+					if slots[i].kind == "bot":
+						slots[i] = _empty_slot()
 			# Trim if the new mode allows fewer fighters.
 			while count_fighters() > mode_max():
 				var removed := false

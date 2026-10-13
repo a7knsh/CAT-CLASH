@@ -2,9 +2,11 @@ extends Node
 ## Two-process LAN test (localhost). Start the host, then the client:
 ##   godot --headless --path . -- --nettest=host
 ##   godot --headless --path . -- --nettest=client
-## The host adds CPUs, waits for the client's player, runs a Stock match and
-## checks the remote cat actually moved and attacked from the client's
-## inputs. The client checks it received snapshots, events and the final
+## LAN games are players-only, so the host fills the other slots with its
+## own virtual human players (virt0..), waits for the clients' players, runs
+## a short Timed match and checks the remote cats actually moved and
+## attacked from the clients' inputs. With --expect-leave it also checks that
+## a client leaving mid-match removes its cat (no CPU takeover). The client checks it received snapshots, events and the final
 ## results. Each process exits 0 on success.
 
 var role := "host"
@@ -37,10 +39,18 @@ func _ready() -> void:
 		if not Net.host("HOST"):
 			_fail("host failed: " + Net.last_error)
 			return
-		Net.request("mode", {"mode": "stock"})
+		Net.request("mode", {"mode": "timed"})
+		# CPUs must be refused in LAN games.
+		Net.request("add_bot", {"skin": Sprites.full_skin(CosmeticDefs.ROSTER[0]), "preset": CosmeticDefs.ROSTER[0].id, "name": "BOT"})
+		for s in Net.lobby.slots:
+			if s.kind == "bot":
+				problems.append("host accepted a CPU in a LAN lobby")
 		for i in 10 - want_clients:
+			var dev := "virt%d" % i
+			InputHub.virtual_held[dev] = {}
 			var r: Dictionary = CosmeticDefs.ROSTER[i % CosmeticDefs.ROSTER.size()]
-			Net.request("add_bot", {"skin": Sprites.full_skin(r), "preset": r.id, "name": "BOT%d" % i})
+			Net.request("join", {"device": dev, "skin": Sprites.full_skin(r), "preset": r.id, "name": "LOCAL%d" % i, "profile": -1})
+			Net.request("set", {"device": dev, "ready": true})
 		stage = "wait_client"
 	else:
 		InputHub.virtual_held["virt1"] = {}
@@ -80,10 +90,12 @@ func _host_tick() -> void:
 				if s.kind == "human" and int(s.owner) != 1 and s.ready:
 					ready_remote += 1
 			if ready_remote >= want_clients:
-				var rules := ModeDefs.default_rules("stock")
-				rules["stocks"] = 1
-				rules["bot_level"] = 2
+				var rules := ModeDefs.default_rules("timed")
+				rules["time"] = 40
 				var ses := Net.build_session(rules, "garden")
+				for p in ses.players:
+					if bool(p.get("bot", false)):
+						problems.append("LAN session contains a CPU fighter")
 				ses["smoke"] = true
 				Net.start_match(ses)
 				stage = "match"
@@ -92,8 +104,12 @@ func _host_tick() -> void:
 			var mc: Node = Net.match_ctl
 			if mc == null or not is_instance_valid(mc):
 				return
+			_drive_local(mc)
 			for f in mc.fighters:
-				if f.owner_peer != 1 and not f.is_bot:
+				if f.is_bot and not f.is_decoy and not f.is_enemy and not f.has_meta("cpu_reported"):
+					f.set_meta("cpu_reported", true)
+					problems.append("CPU fighter %s in a LAN match" % f.display_name)
+				if f.owner_peer != 1 and not f.is_bot and not f.departed:
 					if OS.has_environment("NET_DEBUG") and Engine.get_physics_frames() % 60 == 0:
 						print("[host] remote %s phase=%s pos=%s state=%s move=%s" % [f.display_name, mc.phase, f.global_position, f.state, f.input.move])
 					if mc.phase == "fight":
@@ -108,19 +124,24 @@ func _host_tick() -> void:
 				print("[host] snapshot %d bytes compressed" % Net.last_snapshot_bytes)
 			if mc.finished:
 				if expect_leave:
-					var taken := 0
+					var gone := 0
 					for f in mc.fighters:
+						if f.departed:
+							gone += 1
+							if not f.eliminated or f.visible:
+								problems.append("departed cat %s is still in the fight" % f.display_name)
 						if f.owner_peer != 1 and f.is_bot:
-							taken += 1
-					print("[host] cats taken over by CPU after their device left: %d" % taken)
-					if taken < 1:
-						problems.append("left player's cat was not handed to a CPU")
+							problems.append("departed cat %s was handed to a CPU" % f.display_name)
+					print("[host] cats removed after their device left: %d" % gone)
+					if gone < 1:
+						problems.append("left player's cat was not removed")
 				var movers := 0
 				for f in mc.fighters:
 					if f.has_meta("moved"):
 						movers += 1
-				print("[host] remote fighters that moved: %d / %d" % [movers, want_clients])
-				if movers < want_clients:
+				var need := want_clients - (1 if expect_leave else 0)
+				print("[host] remote fighters that moved: %d / %d" % [movers, need])
+				if movers < need:
 					problems.append("only %d of %d remote fighters moved" % [movers, want_clients])
 				if not remote_attacked:
 					problems.append("remote fighter never attacked")
@@ -176,6 +197,24 @@ func _client_tick() -> void:
 					problems.append("no effect events replayed")
 				print("[client] results: %s (snapshots %d)" % [Router.last_result.get("title", "?"), snaps_seen])
 				_finish()
+
+
+## Host-side virtual players: wander and swing so the match has action.
+func _drive_local(mc: Node) -> void:
+	if mc.phase != "fight":
+		return
+	for i in 10 - want_clients:
+		var k := int(t * 1.5 + i) % 6
+		var held := {}
+		if k < 2:
+			held["right"] = true
+		elif k < 4:
+			held["left"] = true
+		if int(t * 10.0 + i * 3) % 5 == 0:
+			held["light"] = true
+		if int(t * 10.0 + i * 7) % 17 == 0:
+			held["jump"] = true
+		InputHub.virtual_held["virt%d" % i] = held
 
 
 func _any_particles(mc: Node) -> bool:
