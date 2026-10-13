@@ -33,6 +33,11 @@ func teams_active() -> bool:
 	return t == "forced" or t == "coop" or (t == "optional" and bool(rules.get("teams_on", false)))
 
 
+## Colour players by team (false in co-op modes, where everyone shares a team).
+func show_team_colors() -> bool:
+	return teams_active() and ModeDefs.get_def(mode_id).get("teams", "none") != "coop"
+
+
 func skip_countdown() -> bool:
 	return false
 

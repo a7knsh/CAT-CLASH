@@ -36,9 +36,17 @@ func setup() -> void:
 		if p.x > right.x or (p.x == right.x and p.y > right.y):
 			right = p
 	bases = [left, right]
+	# The fish lives on solid ground near the middle: the main-floor spawn
+	# point closest to the centre (never over a pit or a moving platform).
 	var cx: float = ctl.arena.size.x * 0.5
-	var gy: float = ctl.arena.ground_y_at(cx, 0.0)
-	fish_home = Vector2(cx, (gy if gy < INF else 200.0) - 40.0)
+	var best: Vector2 = pts[0]
+	for i in mini(4, pts.size()):
+		if absf(pts[i].x - cx) < absf(best.x - cx):
+			best = pts[i]
+	fish_home = Vector2(best.x + (cx - best.x) * 0.25, best.y - 40.0)
+	var gy: float = ctl.arena.ground_y_at(fish_home.x, best.y - 60.0)
+	if gy == INF or gy > best.y + 4.0:
+		fish_home.x = best.x
 	# Make sure there are exactly two teams.
 	for f in ctl.players():
 		f.team = clampi(f.team, 0, 1)

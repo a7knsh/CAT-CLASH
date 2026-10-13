@@ -395,9 +395,23 @@ func add_status(n: String, t: float) -> void:
 			pass
 
 
+var _embed_query: PhysicsShapeQueryParameters2D
+
+
+## True only when genuinely overlapping solid geometry (touching doesn't count).
+func is_embedded() -> bool:
+	if _embed_query == null:
+		_embed_query = PhysicsShapeQueryParameters2D.new()
+		_embed_query.collision_mask = 1
+		_embed_query.shape = RectangleShape2D.new()
+	(_embed_query.shape as RectangleShape2D).size = _rect.size - Vector2(3, 3)
+	_embed_query.transform = Transform2D(0.0, global_position + _shape.position)
+	return not get_world_2d().direct_space_state.intersect_shape(_embed_query, 1).is_empty()
+
+
 func _unstick() -> void:
 	for i in 12:
-		if test_move(global_transform, Vector2.ZERO):
+		if is_embedded():
 			global_position.y -= 3.0
 		else:
 			break
@@ -633,6 +647,9 @@ func _note_weapon_use() -> void:
 
 
 func _tick_attack(dt: float) -> void:
+	if attack.is_empty() or not attack.has("mv"):
+		set_state("idle" if on_floor else "air")
+		return
 	var mv: Dictionary = attack.mv
 	var a := attack
 	# Charging heavy: hold the button to power up (max 0.8s).

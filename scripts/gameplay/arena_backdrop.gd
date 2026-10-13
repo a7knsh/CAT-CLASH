@@ -304,7 +304,11 @@ func _draw() -> void:
 			draw_rect(Rect2(l[0] + off, sz), Color(c2, 0.8 * tw))
 		else:
 			draw_rect(Rect2(l[0] + off, Vector2(2, 2) if style != "space" else Vector2(1, 1)), c2)
+	# Atmospheric fog: push the far layer back so it never reads as playable.
+	var fog: Color = def.sky[1]
+	draw_rect(view, Color(fog, 0.38))
 	_draw_layer(mid, off_mid)
+	draw_rect(view, Color(fog, 0.3))
 	if style == "sea":
 		for wx in range(-400, int(def.size.x) + 400, 16):
 			var wy := 316.0 + sin(t * 2.0 + wx * 0.1) * 2.0

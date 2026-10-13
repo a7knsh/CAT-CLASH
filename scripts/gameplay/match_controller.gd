@@ -1141,7 +1141,7 @@ func _unstick(dt: float) -> void:
 		return
 	_stuck_t = 0.0
 	for f in fighters:
-		if f.alive_in_round() and f.test_move(f.global_transform, Vector2.ZERO):
+		if f.alive_in_round() and f.is_embedded():
 			f.global_position.y -= 4.0
 
 

@@ -11,6 +11,9 @@ var max_zoom := 1.6
 var _rng := RandomNumberGenerator.new()
 var focus_override := Vector2.INF
 var focus_t := 0.0
+var anchor := Vector2.ZERO
+var anchor_x0 := 0.0
+var anchor_x1 := 0.0
 
 
 func _ready() -> void:
@@ -25,6 +28,13 @@ func setup(controller: Node) -> void:
 	min_zoom = clampf(minf(480.0 / (size.x + 40.0), 270.0 / (size.y + 20.0)), 0.5, 1.0)
 	position = size * 0.5
 	zoom = Vector2(min_zoom, min_zoom)
+	var widest: Rect2 = ctl.arena.def.solids[0]
+	for r in ctl.arena.def.solids:
+		if r.size.x > widest.size.x:
+			widest = r
+	anchor = Vector2(widest.get_center().x, widest.position.y)
+	anchor_x0 = widest.position.x
+	anchor_x1 = widest.end.x
 
 
 func add_shake(amount: float) -> void:
@@ -54,13 +64,17 @@ func tick(dt: float) -> void:
 		var bb := Rect2(pts[0], Vector2.ZERO)
 		for p in pts:
 			bb = bb.expand(p)
+		# If everyone is high in the air, keep the main stage in frame.
+		if bb.end.y < anchor.y - 110.0:
+			bb = bb.expand(Vector2(clampf(bb.get_center().x, anchor_x0, anchor_x1), anchor.y - 30.0))
 		bb = bb.grow_individual(70, 80, 70, 50)
-		target = bb.get_center()
-		tz = clampf(minf(480.0 / bb.size.x, 270.0 / bb.size.y), min_zoom, max_zoom)
+		# Leave room for the HUD panels along the bottom of the screen.
+		tz = clampf(minf(480.0 / bb.size.x, 236.0 / bb.size.y), min_zoom, max_zoom)
+		target = bb.get_center() + Vector2(0, 17.0 / tz)
 	# Keep the view mostly inside the arena (with a little air for blast zones).
 	var half := Vector2(240, 135) / tz
 	var lo := Vector2(-60, -90) + half
-	var hi := size + Vector2(60, 30) - half
+	var hi := size + Vector2(60, 30 + 34.0 / tz) - half
 	if lo.x > hi.x:
 		target.x = size.x * 0.5
 	else:

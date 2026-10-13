@@ -88,6 +88,14 @@ func goto(screen: String, params: Dictionary = {}, fade: bool = true) -> void:
 	busy = false
 
 
+func _input(event: InputEvent) -> void:
+	# Global shortcuts: F11 or Alt+Enter toggles fullscreen.
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F11 or (event.keycode == KEY_ENTER and event.alt_pressed):
+			Settings.set_value("fullscreen", not bool(Settings.get_value("fullscreen")))
+			get_viewport().set_input_as_handled()
+
+
 func show_toast(text: String, color: Color = Pal.UI_HILITE) -> void:
 	_toasts.append({"text": text, "color": color, "t": 3.0})
 	AudioHub.play("coin", -4.0)

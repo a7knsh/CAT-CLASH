@@ -37,6 +37,7 @@ func _ready() -> void:
 		cases.append({"mode": p[0], "count": p[1], "arena": arena})
 		i += 1
 	_test_save_roundtrip()
+	_test_audio()
 	_next()
 
 
@@ -59,6 +60,18 @@ func _test_save_roundtrip() -> void:
 	SaveData.save()
 
 
+func _test_audio() -> void:
+	var n: int = AudioHub._sfx.size()
+	if n < 50:
+		problems.append("audio: only %d sound effects generated" % n)
+	var t0 := Time.get_ticks_msec()
+	var stream := MusicGen.render(ArenaDefs.ALL.garden.music, AudioHub.MUSIC_SR)
+	var ms := Time.get_ticks_msec() - t0
+	if stream == null or stream.data.size() < AudioHub.MUSIC_SR * 2 * 8:
+		problems.append("audio: music render produced too little data")
+	print("audio: %d sfx, music loop %.1fs rendered in %d ms" % [n, stream.data.size() / 2.0 / AudioHub.MUSIC_SR, ms])
+
+
 func _next() -> void:
 	if match_node:
 		match_node.queue_free()
@@ -66,6 +79,7 @@ func _next() -> void:
 	Engine.time_scale = 1.0
 	idx += 1
 	if idx >= cases.size():
+		await _input_test()
 		_report()
 		return
 	var c: Dictionary = cases[idx]
@@ -91,7 +105,7 @@ func _next() -> void:
 
 
 func _physics_process(_dt: float) -> void:
-	if match_node == null or idx >= cases.size():
+	if match_node == null or idx >= cases.size() or not cases[idx].has("mode"):
 		return
 	frames += 1
 	var c: Dictionary = cases[idx]
@@ -104,13 +118,23 @@ func _physics_process(_dt: float) -> void:
 			problems.append("%s: NaN position" % c.mode)
 			_finish(false, "nan")
 			return
-		if f.alive_in_round() and f.test_move(f.global_transform, Vector2.ZERO):
+		if f.alive_in_round() and f.is_embedded():
 			stuck[f] = int(stuck.get(f, 0)) + 1
 			if stuck[f] > 180:
 				problems.append("%s/%s: fighter stuck in geometry at %s" % [c.mode, c.arena, p])
 				stuck[f] = -100000
 		else:
 			stuck[f] = 0
+	if OS.has_environment("CAT_DEBUG") and frames % 300 == 0:
+		var line := "t=%ds %s |" % [frames / 60, match_node.mode.hud_top()]
+		for f in match_node.fighters:
+			if is_instance_valid(f):
+				var goal: String = f.brain.goal_kind if f.brain else "-"
+				line += " %s(%d,%d %s w=%s g=%s mv=%.1f wall=%s floor=%s)" % [f.display_name, int(f.global_position.x), int(f.global_position.y), f.state, f.weapon_id(), goal, f.input.move.x, f.is_on_wall(), f.on_floor]
+		for it in match_node.items():
+			if it.id() == "fishobj":
+				line += " FISH@(%d,%d)" % [int(it.global_position.x), int(it.global_position.y)]
+		print(line)
 	if match_node.proj.list.size() > 150:
 		problems.append("%s: projectile overflow" % c.mode)
 	if match_node.finished:
@@ -135,6 +159,93 @@ func _finish(ok: bool, note: String) -> void:
 	results.append({"case": "%-9s %-9s %dp" % [c.mode, c.arena, c.count], "ok": ok, "note": note if note != "" else title,
 		"time": "%.0fs" % (frames / 60.0), "kos": kos})
 	_next()
+
+
+## Drive a "human" cat through a virtual controller to verify the whole
+## input -> movement -> combat pipeline (run, jump, attack, pick up, throw).
+func _input_test() -> void:
+	var s := Sessions.quick_session("training", "garden", 1, false)
+	s.players[0].device = "virt0"
+	s["smoke"] = true
+	s.rules["dummy_count"] = 1
+	s.rules["dummy_ai"] = "stand"
+	Router.session = s
+	InputHub.virtual_held["virt0"] = {}
+	match_node = load("res://scripts/gameplay/match_controller.gd").new()
+	match_node.setup({})
+	match_node.headless_fast = true
+	Router.root.add_child(match_node)
+	var ok := true
+	var notes: Array = []
+	await _frames(70)
+	var me: CatFighter = null
+	var dummy: CatFighter = null
+	for f in match_node.fighters:
+		if f.is_dummy:
+			dummy = f
+		elif not f.is_bot:
+			me = f
+	if me == null or dummy == null:
+		results.append({"case": "input pipeline", "ok": false, "note": "fighters missing", "time": "-", "kos": 0})
+		return
+	# Run right
+	var x0 := me.global_position.x
+	InputHub.virtual_held["virt0"] = {"right": true}
+	await _frames(40)
+	InputHub.virtual_held["virt0"] = {}
+	if me.global_position.x - x0 < 40.0:
+		ok = false
+		notes.append("run failed (%.0f px)" % (me.global_position.x - x0))
+	await _frames(20)
+	# Jump
+	InputHub.virtual_held["virt0"] = {"jump": true}
+	await _frames(6)
+	InputHub.virtual_held["virt0"] = {}
+	await _frames(4)
+	if me.on_floor:
+		ok = false
+		notes.append("jump failed")
+	await _frames(70)
+	# Attack the dummy
+	me.global_position = dummy.global_position + Vector2(-14, -2)
+	me.facing = 1
+	await _frames(10)
+	var before: float = dummy.stats.damage_taken
+	for k in 3:
+		InputHub.virtual_held["virt0"] = {"light": true}
+		await _frames(2)
+		InputHub.virtual_held["virt0"] = {}
+		await _frames(14)
+	if dummy.stats.damage_taken <= before:
+		ok = false
+		notes.append("attack did no damage")
+	# Pick up and throw
+	await _frames(40)
+	match_node.spawn_item({"id": "sword", "ammo": -1, "dur": -1, "hits": 0}, me.global_position + Vector2(0, -4), Vector2.ZERO, null, false)
+	await _frames(20)
+	InputHub.virtual_held["virt0"] = {"throw": true}
+	await _frames(2)
+	InputHub.virtual_held["virt0"] = {}
+	await _frames(10)
+	if me.weapon_id() != "sword":
+		ok = false
+		notes.append("pickup failed")
+	InputHub.virtual_held["virt0"] = {"throw": true}
+	await _frames(2)
+	InputHub.virtual_held["virt0"] = {}
+	await _frames(10)
+	if not me.weapon.is_empty():
+		ok = false
+		notes.append("throw failed")
+	InputHub.virtual_held.erase("virt0")
+	results.append({"case": "input pipeline (virtual pad)", "ok": ok, "note": ", ".join(notes) if not notes.is_empty() else "run/jump/attack/pickup/throw OK", "time": "-", "kos": 0})
+	match_node.queue_free()
+	match_node = null
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().physics_frame
 
 
 func _report() -> void:
