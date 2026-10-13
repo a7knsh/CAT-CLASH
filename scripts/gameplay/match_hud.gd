@@ -35,7 +35,7 @@ func _draw_hud() -> void:
 		return
 	var s := int(Settings.get_value("hud_scale"))
 	s = clampi(s, 1, 2)
-	var teams: bool = ctl.mode.teams_active()
+	var teams: bool = ctl.mode.show_team_colors()
 	var list: Array = ctl.mode.hud_fighters()
 	var n := list.size()
 	if n > 0 and not ctl.mode.hide_panels():

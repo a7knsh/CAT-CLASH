@@ -34,6 +34,7 @@ var unstick_dir := 1.0
 var defend_cd := 0.0
 var dummy_t := 0.0
 var jumped_t := 0.0
+var hold_jump_t := 0.0
 
 
 func _init(fighter: CatFighter, lvl: int) -> void:
@@ -48,6 +49,10 @@ func think(dt: float) -> void:
 	inp.move = Vector2.ZERO
 	for a in InputHub.ACTIONS:
 		inp.bot_hold(a, false)
+	# Keep jump held briefly after pressing so bots get full-height jumps.
+	if hold_jump_t > 0.0:
+		hold_jump_t -= dt
+		inp.bot_hold("jump", true)
 	if f.ctl == null or not f.ctl.fighting:
 		return
 	if dummy_mode != "" and dummy_mode != "cpu":
@@ -156,11 +161,11 @@ func _execute(dt: float) -> void:
 			var dir := signf(cx - me.x)
 			inp.move.x = dir
 			if f.velocity.y > -20.0 and f.air_jumps > 0 and jumped_t <= 0.0:
-				inp.bot_press("jump")
+				_jump()
 				jumped_t = 0.25
 			elif f.wall_dir != 0 and jumped_t <= 0.0:
 				inp.move.x = float(f.wall_dir)
-				inp.bot_press("jump")
+				_jump()
 				jumped_t = 0.2
 			elif f.air_dodge_ready and f.air_jumps == 0 and f.velocity.y > 120.0 and level >= 1:
 				inp.move = Vector2(dir, -1).normalized()
@@ -187,7 +192,7 @@ func _execute(dt: float) -> void:
 	# 4) Navigation toward goal.
 	var dx := goal.x - me.x
 	var dy := goal.y - me.y
-	if goal_kind == "fight" and target:
+	if goal_kind == "fight" and is_instance_valid(target):
 		dx = target.global_position.x - me.x
 		dy = target.global_position.y - me.y
 	var reach := _reach()
@@ -206,50 +211,56 @@ func _execute(dt: float) -> void:
 			# Jump the gap if the goal is across and there's ground on the far side.
 			var far := arena.ground_y_at(me.x + want_x * 110.0, me.y - 30.0)
 			if far < me.y + 40.0 and jumped_t <= 0.0:
-				inp.bot_press("jump")
-				inp.bot_hold("jump", true)
+				_jump()
 				jumped_t = 0.5
 			elif goal_kind != "fight" or absf(dy) < 40.0:
 				want_x = 0.0
 	inp.move.x = want_x
 	# Climb toward targets above / drop toward targets below.
 	if dy < -26.0 and f.on_floor and jumped_t <= 0.0 and absf(dx) < 140.0:
-		inp.bot_press("jump")
-		inp.bot_hold("jump", true)
+		_jump()
 		jumped_t = 0.45
 	elif dy < -26.0 and not f.on_floor and f.velocity.y > 0.0 and f.air_jumps > 0 and jumped_t <= 0.0:
-		inp.bot_press("jump")
+		_jump()
 		jumped_t = 0.3
 	elif dy > 30.0 and f.on_floor and absf(dx) < 60.0 and jumped_t <= 0.0:
 		inp.move.y = 1.0
 		inp.bot_press("jump")
 		jumped_t = 0.4
 	if f.is_on_wall() and f.on_floor and want_x != 0.0 and jumped_t <= 0.0:
-		inp.bot_press("jump")
-		inp.bot_hold("jump", true)
+		_jump()
 		jumped_t = 0.4
-	# 5) Pick up items we're standing on.
+	# 5) Pick up items we're standing on (drop our weapon for the objective fish).
+	if goal_kind == "objective" and not f.weapon.is_empty() and f.weapon_id() != "fishobj" and me.distance_to(goal) < 30.0:
+		var obj2: Variant = f.ctl.mode.bot_objective(f)
+		if obj2 is Dictionary and obj2.get("fish", false):
+			inp.bot_press("throw")
+			return
 	if f.weapon.is_empty():
 		for it in f.ctl.items():
 			if it.pickable() and it.global_position.distance_to(me + Vector2(0, -4)) < 18.0:
 				if it.id() != "fishobj" or (f.ctl.mode and f.ctl.mode.bot_wants_fish(f)):
 					inp.bot_press("throw")
 					break
-	# 6) Attack.
-	if target and attack_cd <= 0.0 and f.actionable():
-		_attack(dx, dy)
+	# 6) Attack (always relative to the target, even while chasing objectives).
+	if is_instance_valid(target) and attack_cd <= 0.0 and f.actionable():
+		_attack(target.global_position.x - me.x, target.global_position.y - me.y)
 	# 7) Anti-stuck.
 	stuck_t += dt
 	if stuck_t > 1.2:
 		if me.distance_to(last_pos) < 4.0 and want_x != 0.0:
 			unstick_t = 0.5
 			unstick_dir = -want_x if rng.randf() < 0.5 else want_x
-			inp.bot_press("jump")
-			inp.bot_hold("jump", true)
+			_jump()
 		stuck_t = 0.0
 		last_pos = me
 	if unstick_t > 0.0:
 		inp.move.x = unstick_dir
+
+
+func _jump() -> void:
+	f.input.bot_press("jump")
+	hold_jump_t = 0.28
 
 
 func _attack(dx: float, dy: float) -> void:
@@ -367,8 +378,7 @@ func _dummy(dt: float) -> void:
 				inp.move.x = signf(cx - f.global_position.x)
 		"jump":
 			if f.on_floor and fmod(dummy_t, 1.4) < dt * 1.5:
-				inp.bot_press("jump")
-				inp.bot_hold("jump", true)
+				_jump()
 		"block":
 			inp.bot_hold("block", true)
 			if f.state == "idle":

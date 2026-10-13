@@ -22,7 +22,8 @@ func _draw() -> void:
 		return
 	if ctl.mode:
 		ctl.mode.draw_world(self, t)
-	var teams: bool = ctl.mode.teams_active() if ctl.mode else false
+	var teams: bool = ctl.mode.show_team_colors() if ctl.mode else false
+	var placed: Array = []
 	for f in ctl.fighters:
 		if not f.visible or f.dead or f.is_enemy:
 			continue
@@ -41,7 +42,21 @@ func _draw() -> void:
 		var shape := Pal.team_shape(f.team) if teams else Pal.player_shape(f.slot)
 		if not f.is_dummy:
 			tag = shape + tag
-		PixelFont.draw_outlined(self, top + Vector2(0, -8), tag, col)
+		# Stagger tags that would overlap another cat's tag.
+		var w := PixelFont.text_width(tag) + 4
+		var tr := Rect2(top + Vector2(-w * 0.5, -9), Vector2(w, 9))
+		for k in 3:
+			var hit := false
+			for r in placed:
+				if tr.intersects(r):
+					hit = true
+					break
+			if not hit:
+				break
+			tr.position.y -= 10
+		placed.append(tr)
+		var ty := tr.position.y + 1 - top.y
+		PixelFont.draw_outlined(self, top + Vector2(0, ty), tag, col)
 		draw_rect(Rect2(top + Vector2(-1, 1), Vector2(3, 1)), col)
 		draw_rect(Rect2(top + Vector2(0, 2), Vector2(1, 1)), col)
 		# Team ring at the feet (dashed for even teams so it's not colour-only).
