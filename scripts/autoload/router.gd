@@ -18,6 +18,7 @@ const SCREENS := {
 	"controls": "res://scripts/ui/controls_screen.gd",
 	"credits": "res://scripts/ui/credits_screen.gd",
 	"tournament": "res://scripts/ui/tournament_screen.gd",
+	"net": "res://scripts/ui/net_screen.gd",
 }
 
 var root: Node
@@ -92,7 +93,8 @@ func _input(event: InputEvent) -> void:
 	# Global shortcuts: F11 or Alt+Enter toggles fullscreen.
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_F11 or (event.keycode == KEY_ENTER and event.alt_pressed):
-			Settings.set_value("fullscreen", not bool(Settings.get_value("fullscreen")))
+			var fs: bool = Settings.get_value("window_mode") in ["fullscreen", "exclusive", "borderless"]
+			Settings.set_value("window_mode", "windowed" if fs else "fullscreen")
 			get_viewport().set_input_as_handled()
 
 

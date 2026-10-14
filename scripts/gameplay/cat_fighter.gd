@@ -37,6 +37,12 @@ var profile_idx := -1
 var is_dummy := false
 var is_enemy := false
 var is_decoy := false
+## Network id (stable across host and clients).
+var nid := -1
+## Owning device's peer id in LAN games (1 = host).
+var owner_peer := 1
+## True once this LAN player's device has left the game.
+var departed := false
 var decoy_life := 0.0
 var device := ""
 var input := FighterInput.new()
@@ -183,6 +189,14 @@ func recent_attacker(window: float = 6.0) -> CatFighter:
 	if ctl and ctl.time - last_hit_time > window:
 		return null
 	return last_hit_by
+
+
+## Trigger a puppet reaction (squash, hurt flash...) and replicate it to LAN clients.
+func _pup(method: String, args: Array) -> void:
+	if puppet:
+		puppet.callv(method, args)
+	if ctl and ctl.has_method("net_event"):
+		ctl.net_event(["p", nid, method, args])
 
 
 func center() -> Vector2:
@@ -565,7 +579,7 @@ func _do_jump(v: float) -> void:
 	on_floor = false
 	set_state("air")
 	if puppet:
-		puppet.squash(-0.22)
+		_pup("squash", [-0.22])
 	if ctl:
 		ctl.fx.dust(global_position, 3, 0)
 	AudioHub.play("jump", -10.0)
@@ -578,7 +592,7 @@ func _wall_jump() -> void:
 	jump_held = true
 	set_state("air")
 	if puppet:
-		puppet.squash(-0.18)
+		_pup("squash", [-0.18])
 	if ctl:
 		ctl.fx.dust(global_position + Vector2(wall_dir * 6, -8), 3, -wall_dir)
 	AudioHub.play("jump", -10.0, 1.15)
@@ -632,7 +646,7 @@ func start_attack(move_id: String) -> void:
 		queued_t = 0.12
 		return
 	attack = {"mv": mv, "t": 0.0, "fired": false, "hits": {}, "hit_any": false, "charge": 0.0,
-		"charging": mv.charge, "multi_t": 0.0, "dash": absf(velocity.x) > 140.0 and on_floor}
+		"charging": mv.charge, "multi_t": 0.0, "dash": absf(velocity.x) > 140.0 and on_floor, "wid": weapon_id()}
 	set_state("attack")
 	run_time = 0.0
 	if mv.kind == "melee" and ctl:
@@ -698,7 +712,7 @@ func _tick_attack(dt: float) -> void:
 		stun_kind = "land"
 		hitstun = mv.landing_lag
 		if puppet:
-			puppet.squash(0.2)
+			_pup("squash", [0.2])
 		return
 	if t >= st + ac + rc:
 		attack = {}
@@ -874,7 +888,7 @@ func give_weapon(id: String, ammo: int = -1) -> void:
 		drop_weapon(false)
 	weapon = {"id": id, "ammo": ammo if ammo >= 0 else int(d.get("ammo", -1)), "dur": int(d.get("dur", -1)), "hits": 0, "cd": 0.0}
 	if puppet:
-		puppet.on_pickup()
+		_pup("on_pickup", [])
 
 
 func drop_weapon(fling: bool, fling_dir: Vector2 = Vector2.ZERO) -> void:
@@ -909,7 +923,7 @@ func throw_weapon() -> void:
 	hitstun = 0.16
 	AudioHub.play("throw", -4.0)
 	if puppet:
-		puppet.on_throw()
+		_pup("on_throw", [])
 
 
 func use_ammo(n: int = 1) -> void:
@@ -1034,7 +1048,7 @@ func receive_hit(h: Dictionary) -> String:
 		set_state("hitstun")
 	hitstop = float(h.get("hitstop", 0.05))
 	if puppet:
-		puppet.on_hurt(dir, speed)
+		_pup("on_hurt", [dir, speed])
 	# Strong hits disarm.
 	if speed > 430.0 and not weapon.is_empty() and weapon_id() != "fishobj" and randf() < 0.65:
 		drop_weapon(true, Vector2(dir, -0.3).normalized())
@@ -1174,7 +1188,7 @@ func respawn(pos: Vector2, with_invuln: bool = true) -> void:
 	if with_invuln:
 		status["spawn"] = 2.0
 	if puppet:
-		puppet.on_spawn()
+		_pup("on_spawn", [])
 
 
 # ================================================================= physics
@@ -1242,7 +1256,7 @@ func _on_land() -> void:
 	if state == "spawning":
 		set_state("idle")
 	if puppet:
-		puppet.squash(clampf(prev_velocity.y / 900.0, 0.05, 0.35))
+		_pup("squash", [clampf(prev_velocity.y / 900.0, 0.05, 0.35)])
 	if prev_velocity.y > 200.0 and ctl:
 		ctl.fx.dust(global_position, 4, 0)
 		AudioHub.play("land", -10.0)
@@ -1271,7 +1285,7 @@ func _tech_or_bounce(wall: bool) -> void:
 			ctl.fx.shake(2.0)
 		AudioHub.play("thump", -2.0)
 		if puppet:
-			puppet.squash(0.3)
+			_pup("squash", [0.3])
 		return
 	if prev_velocity.y > 260.0 and bounce_count < 2:
 		velocity.y = -prev_velocity.y * 0.42
@@ -1280,11 +1294,11 @@ func _tech_or_bounce(wall: bool) -> void:
 			ctl.fx.dust(global_position, 5, 0)
 		AudioHub.play("thump", -4.0)
 		if puppet:
-			puppet.squash(0.35)
+			_pup("squash", [0.35])
 	else:
 		set_state("knockdown")
 		if puppet:
-			puppet.squash(0.25)
+			_pup("squash", [0.25])
 		if ctl:
 			ctl.fx.dust(global_position, 3, 0)
 

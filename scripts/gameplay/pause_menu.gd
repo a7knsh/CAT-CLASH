@@ -33,10 +33,16 @@ func open_menu(device: String) -> void:
 	open = true
 	paused_by = device
 	confirm_quit = false
-	get_tree().paused = true
+	# LAN games keep running for everyone else while you're in the menu.
+	if not _net():
+		get_tree().paused = true
 	canvas.visible = true
 	_build()
 	AudioHub.play("ui_select", -4.0)
+
+
+func _net() -> bool:
+	return Net.active and ctl.session.get("net", false)
 
 
 func close_menu() -> void:
@@ -50,11 +56,17 @@ func _build() -> void:
 	var keep := menu.index
 	menu.clear()
 	if ctl.disconnect_msg != "":
-		menu.add("cpu", "CONTINUE WITH CPU")
+		if not _net():
+			menu.add("cpu", "CONTINUE WITH CPU")
+		elif Net.is_host:
+			menu.add("drop", "CONTINUE WITHOUT THEM")
 		menu.add("resume", "RESUME (RECONNECTED)")
 	else:
 		menu.add("resume", "RESUME")
-	menu.add("restart", "RESTART MATCH")
+	if not _net() or Net.is_host:
+		menu.add("restart", "RESTART MATCH" if not _net() else "RESTART MATCH (EVERYONE)")
+	if _net() and Net.is_host:
+		menu.add("to_lobby", "END MATCH: BACK TO LOBBY")
 	if ctl.mode_id == "training":
 		menu.add("dummy", "DUMMY", "choice", ModeDefs.rule_label("dummy_ai", ctl.rules.get("dummy_ai", "stand")))
 		var ids: Array = WeaponDefs.ALL.keys()
@@ -64,7 +76,10 @@ func _build() -> void:
 	menu.add("sfx", "SFX VOLUME", "choice", "%d%%" % int(round(float(Settings.get_value("sfx_volume")) * 100)))
 	menu.add("music", "MUSIC VOLUME", "choice", "%d%%" % int(round(float(Settings.get_value("music_volume")) * 100)))
 	menu.add("shake", "SCREEN SHAKE", "choice", "%d%%" % int(round(Settings.shake_amount() * 100)))
-	menu.add("quit", "QUIT TO MENU" if not confirm_quit else "REALLY QUIT? PRESS AGAIN", "button", "", {"color": Pal.UI_BAD})
+	var quit_label := "QUIT TO MENU"
+	if _net():
+		quit_label = "LEAVE LAN GAME" if not Net.is_host else "CLOSE LAN SESSION"
+	menu.add("quit", quit_label if not confirm_quit else "REALLY? PRESS AGAIN", "button", "", {"color": Pal.UI_BAD})
 	menu.index = clampi(keep, 0, menu.items.size() - 1)
 
 
@@ -114,6 +129,9 @@ func _handle(r: Dictionary) -> void:
 				"cpu":
 					ctl.convert_to_bot(paused_by)
 					close_menu()
+				"drop":
+					ctl.remove_player(paused_by)
+					close_menu()
 				"restart":
 					close_menu()
 					ctl.restart_match()
@@ -124,10 +142,15 @@ func _handle(r: Dictionary) -> void:
 					var ids: Array = WeaponDefs.ALL.keys()
 					ctl.mode.spawn_training_weapon(ids[spawn_idx % ids.size()], paused_by)
 					close_menu()
+				"to_lobby":
+					close_menu()
+					Net.return_to_lobby()
 				"quit":
 					if confirm_quit:
 						get_tree().paused = false
 						Router.tournament = {}
+						if _net():
+							Net.leave()
 						Router.goto("main_menu")
 					else:
 						confirm_quit = true

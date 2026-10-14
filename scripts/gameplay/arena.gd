@@ -86,19 +86,34 @@ func _make_body(r: Rect2, layer: int, oneway: bool, ice: bool) -> StaticBody2D:
 
 func tick(dt: float) -> void:
 	t += dt
+	sync_movers()
+	for h in hazards:
+		h.tick(dt)
+
+
+## Position moving platforms for the current arena time (also used by LAN clients).
+func sync_movers() -> void:
 	for m in movers:
 		var ph := sin(t / m.period * TAU) * 0.5 + 0.5
 		m.body.position = m.base + m.move * ph
-	for h in hazards:
-		h.tick(dt)
 
 
 func blast_rect() -> Rect2:
 	return Rect2(-blast.x, -blast.y - 120.0, size.x + blast.x * 2.0, size.y + blast.y + 120.0 + 40.0)
 
 
+## Spawn points (feet). Arenas define 8; extra ones for up to 10 fighters
+## are derived by nudging existing points sideways.
 func spawn_points() -> Array:
-	return def.spawns
+	var pts: Array = def.spawns.duplicate()
+	var base: Array = def.spawns
+	var i := 0
+	while pts.size() < Net.MAX_FIGHTERS:
+		var p: Vector2 = base[i % base.size()]
+		var off := 16.0 if p.x < size.x * 0.5 else -16.0
+		pts.append(p + Vector2(off, 0))
+		i += 1
+	return pts
 
 
 func gravity() -> float:
@@ -113,7 +128,7 @@ func ground_y_at(x: float, from_y: float = -100.0) -> float:
 	return r.position.y if not r.is_empty() else INF
 
 
-## Danger level (0..1) at a world position — used by bots to avoid hazards.
+## Danger level (0..1) at a world position - used by bots to avoid hazards.
 func danger_at(p: Vector2) -> float:
 	var d := 0.0
 	for h in hazards:

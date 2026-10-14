@@ -6,9 +6,12 @@
 |-------|---------|-------------|
 | Parse check | `godot --headless --path . -- --check` | `checked N scripts`, no `SCRIPT ERROR` |
 | Smoke test | `godot --headless --path . --fixed-fps 60 -- --smoke` | all cases `PASS`, exit code 0 |
-| One mode only | `... -- --smoke --only=capture` | handy while iterating |
+| One mode only | `... -- --smoke --only=capture` (add `--arena=space --count=10` to narrow further) | handy while iterating |
 | Debug trace | `CAT_DEBUG=1 godot ... -- --smoke --only=koth` | prints positions, states and goals every 5 s |
 | Screenshots | `godot --path . --fixed-fps 60 --resolution 960x540 -- --shots` | PNGs in `user://shots` (Linux: `~/.local/share/CatClash/shots`) |
+| LAN, 1 client | `-- --nettest=host` then `-- --nettest=client` | both print `PASS`; the host fills the other 9 slots with virtual human players and refuses CPUs |
+| LAN, 3 clients | `-- --nettest=host --clients=3`, then start 3 clients | host PASS, 3/3 remote cats moved |
+| LAN dropout | `-- --nettest=host --clients=1 --expect-leave`, then `-- --nettest=client --leave-after=12` | the left player's cat is removed (not handed to a CPU) and the match finishes |
 | Benchmark | `godot --path . -- --bench` | average frame time well under 16.6 ms |
 
 The smoke test covers:
@@ -24,6 +27,16 @@ The smoke test covers:
 
 ## Manual checklist
 
+### LAN play (2+ real devices)
+- [ ] The host appears in the joiner's GAMES ON YOUR NETWORK list within about 2 s
+- [ ] Join by IP works when broadcast is blocked
+- [ ] Two players on one client device (keyboard halves) plus pads on others, 10 fighters in total
+- [ ] The host changes the mode in the lobby; clients see it live. CPU buttons are disabled ("PLAYERS ONLY") and setup hides the CPU difficulty except for Survival/Boss enemies. Clients see "HOST IS SETTING UP" during setup.
+- [ ] Mid-match: effects, sounds, hazards, items, boss and HUD all match the host
+- [ ] Close a client mid-match: its cat leaves the fight (name shows LEFT) and the match goes on. Close the host: clients return to the menu.
+- [ ] Results: the host chooses REMATCH or BACK TO LOBBY and every device follows
+- [ ] Firewall prompt on Windows: allowing private networks fixes discovery
+
 ### Players and devices
 - [ ] 1 player plus CPUs (keyboard left)
 - [ ] 2 players on one keyboard (WASD side + arrows/numpad side) at the same time, with no blocked inputs when both mash
@@ -31,7 +44,7 @@ The smoke test covers:
 - [ ] Mixed: 1 keyboard half + 3 pads
 - [ ] Join/leave in the lobby (JUMP to join, THROW to leave), add/remove CPUs (HEAVY/TAUNT)
 - [ ] Unplug a pad mid-match: the game pauses with "CONTROLLER DISCONNECTED". Test both continuing with a CPU and resuming after reconnecting.
-- [ ] Rebind a key, then rebind it to a key used by another action (the bindings swap). Reset a device to defaults.
+- [ ] Rebind a primary and an alternate key, then bind a key used by another action, also one on the other keyboard half (the bindings swap). Clear a slot (HEAVY or Delete); clearing the last binding of an action is refused. F11 can't be bound. Bind LT/RT on a pad. Reset one device, then reset all (asks twice).
 - [ ] Mouse navigation in menus (hover, click, wheel, left/right click on options)
 
 ### Combat feel
@@ -84,7 +97,9 @@ The smoke test covers:
 ### Accessibility and settings
 - [ ] Colour-blind palette changes player and team colours; shapes stay
 - [ ] Reduce flashing, simplified effects, HUD size, damage numbers
-- [ ] Volume sliders, fullscreen (F11 / Alt+Enter), window scale, VSync
+- [ ] Volume sliders; every display mode (windowed, borderless, fullscreen, exclusive) and F11 / Alt+Enter
+- [ ] Each resolution, including non-integer ones like 1366x768 and 1600x900 (text stays readable); a size larger than the monitor shrinks to fit
+- [ ] Pixel-perfect scaling adds borders instead of uneven pixels; VSync and FPS limit change the FPS counter
 
 ### Platforms
 - [ ] Linux build (export preset "Linux")

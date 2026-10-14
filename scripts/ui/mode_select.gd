@@ -22,6 +22,8 @@ func _on_menu(r: Dictionary) -> void:
 	if r.action == "back":
 		Router.goto("main_menu")
 	elif r.action == "activate":
+		if Net.active:
+			Net.leave()
 		Router.session = {"mode": r.id}
 		Router.goto("lobby")
 

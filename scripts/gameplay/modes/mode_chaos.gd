@@ -79,3 +79,7 @@ func hud_top() -> String:
 
 func hud_sub() -> String:
 	return MODS.get(current, "")
+
+
+func net_vars() -> Array:
+	return ["mod_t", "current"]

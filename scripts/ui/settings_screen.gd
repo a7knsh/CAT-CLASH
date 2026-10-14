@@ -7,9 +7,11 @@ const ROWS := [
 	["music_volume", "MUSIC VOLUME", "vol"],
 	["sfx_volume", "SFX VOLUME", "vol"],
 	["label", "VIDEO"],
-	["fullscreen", "FULLSCREEN", "bool"],
+	["window_mode", "DISPLAY MODE", "wmode"],
+	["resolution", "RESOLUTION", "res"],
+	["scaling", "SCALING", "scaling"],
 	["vsync", "VSYNC", "bool"],
-	["window_scale", "WINDOW SCALE", "scale"],
+	["max_fps", "FPS LIMIT", "fps"],
 	["show_fps", "SHOW FPS", "bool"],
 	["label", "ACCESSIBILITY"],
 	["screen_shake", "SCREEN SHAKE", "shake"],
@@ -26,6 +28,10 @@ const ROWS := [
 ]
 
 const HINTS := {
+	"window_mode": "Windowed, borderless (fills the monitor), fullscreen or exclusive fullscreen. F11 / Alt+Enter toggles fullscreen.",
+	"resolution": "Window size in windowed mode (fullscreen modes use the monitor's resolution).",
+	"scaling": "Smooth fills the screen; Pixel-perfect uses whole-number scaling for crisp pixels (may add borders).",
+	"max_fps": "Cap the frame rate to save power. Unlimited follows VSync.",
 	"screen_shake": "Scale or disable camera shake on big hits.",
 	"reduce_flashing": "Replaces white hit flashes and blinking warnings with gentler effects.",
 	"simple_vfx": "Halves particles and removes small rings for clearer, calmer visuals.",
@@ -33,6 +39,17 @@ const HINTS := {
 	"hud_scale": "Larger HUD text for readability.",
 	"bot_difficulty": "Default CPU skill for new lobbies (changeable per match).",
 }
+
+
+## Standard 16:9 sizes plus this monitor's own resolution.
+func _resolutions() -> Array:
+	var out: Array = Settings.RESOLUTIONS.duplicate()
+	if DisplayServer.get_name() != "headless":
+		var sz := DisplayServer.screen_get_size()
+		var mine := "%dx%d" % [sz.x, sz.y]
+		if sz.x > 0 and not (mine in out):
+			out.append(mine)
+	return out
 
 
 func _build() -> void:
@@ -53,6 +70,14 @@ func _value_text(key: String, kind: String) -> String:
 		"hud": return "NORMAL" if int(v) == 1 else "LARGE"
 		"bot": return ModeDefs.rule_label("bot_level", int(v))
 		"dz": return "%.2f" % float(v)
+		"wmode": return Settings.WINDOW_MODE_NAMES.get(str(v), "WINDOWED")
+		"res":
+			var txt := str(v).replace("x", " X ")
+			if Settings.get_value("window_mode") != "windowed":
+				txt += " (DESKTOP)"
+			return txt
+		"scaling": return "PIXEL-PERFECT" if v == "pixel" else "SMOOTH"
+		"fps": return "UNLIMITED" if int(v) == 0 else "%d" % int(v)
 		"sens": return "%.1fX" % float(v)
 	return str(v)
 
@@ -62,7 +87,7 @@ func _rebuild() -> void:
 	menu.clear()
 	for r in ROWS:
 		if r[0] == "label":
-			menu.add("", "— " + r[1] + " —", "label")
+			menu.add("", "- " + r[1] + " -", "label")
 		else:
 			menu.add(r[0], r[1], "choice", _value_text(r[0], r[2]), {"hint": HINTS.get(r[0], ""), "kind2": r[2]})
 	menu.add("controls", "CONTROLS & KEY BINDINGS...", "button", "", {"hint": "Remap keyboard halves and gamepads."})
@@ -90,6 +115,10 @@ func _on_menu(r: Dictionary) -> void:
 			var v: Variant = Settings.get_value(key)
 			match kind:
 				"vol": v = clampf(snappedf(float(v) + d * 0.1, 0.1), 0.0, 1.0)
+				"wmode": v = cycle(Settings.WINDOW_MODES, v, d)
+				"res": v = cycle(_resolutions(), v, d)
+				"scaling": v = "smooth" if v == "pixel" else "pixel"
+				"fps": v = cycle(Settings.FPS_CAPS, int(v), d)
 				"bool": v = not bool(v)
 				"scale": v = clampi(int(v) + d, 1, 6)
 				"shake": v = clampf(snappedf(float(v) + d * 0.25, 0.25), 0.0, 1.5)

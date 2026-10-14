@@ -17,6 +17,8 @@ var _music_cache: Dictionary = {}
 var _pending: Dictionary = {}
 var _want_music := ""
 var _rng := RandomNumberGenerator.new()
+## Host of a LAN game: sounds are recorded and replayed on clients.
+var recorder: Callable
 
 
 func _ready() -> void:
@@ -64,6 +66,8 @@ func apply_volumes() -> void:
 func play(sname: String, volume_db: float = 0.0, pitch: float = 1.0, vary: float = 0.08) -> void:
 	if not _sfx.has(sname):
 		return
+	if recorder.is_valid():
+		recorder.call(["snd", sname, volume_db, pitch])
 	var now := Time.get_ticks_msec()
 	if now - int(_last_play.get(sname, -1000)) < 28:
 		return
@@ -145,6 +149,8 @@ func _start_music(stream: AudioStreamWAV) -> void:
 
 
 func duck_music(amount_db: float, dur: float) -> void:
+	if recorder.is_valid():
+		recorder.call(["duck", amount_db, dur])
 	if not _music_a.playing:
 		return
 	var tw := create_tween()

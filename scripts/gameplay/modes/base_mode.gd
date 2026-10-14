@@ -14,6 +14,23 @@ func setup() -> void:
 	pass
 
 
+## Variables replicated to LAN clients (for HUD and world drawing).
+func net_vars() -> Array:
+	return []
+
+
+func net_state() -> Dictionary:
+	var d := {}
+	for v in net_vars():
+		d[v] = get(v)
+	return d
+
+
+func apply_net_state(d: Dictionary) -> void:
+	for k in d.keys():
+		set(k, d[k])
+
+
 # ------------------------------------------------------------- properties
 
 func uses_rounds() -> bool:

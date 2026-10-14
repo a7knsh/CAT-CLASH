@@ -6,10 +6,13 @@ var featured := 0
 
 
 func _build() -> void:
-	menu.pos = Vector2(40, 64)
+	if Net.active:
+		Net.leave()
+	menu.pos = Vector2(40, 60)
 	menu.width = 170
-	menu.line_h = 15
+	menu.line_h = 14
 	menu.add("play", "PLAY", "button", "", {"hint": "Pick a game mode, gather your friends, fight!"})
+	menu.add("lan", "LAN PARTY (2-10 DEVICES)", "button", "", {"hint": "Host or join a game on your local network: up to 10 fighters on different devices."})
 	menu.add("quick", "QUICK MATCH", "button", "", {"hint": "Free-for-all stock match: you vs 3 bots on a random arena."})
 	menu.add("training", "TRAINING", "button", "", {"hint": "Practise combos, parries and weapons on dummies."})
 	menu.add("tournament", "TOURNAMENT", "button", "", {"hint": "A knockout bracket. Bots fill empty seats."})
@@ -52,6 +55,8 @@ func _on_menu(r: Dictionary) -> void:
 	match r.id:
 		"play":
 			Router.goto("mode_select")
+		"lan":
+			Router.goto("net")
 		"quick":
 			var dev: String = r.device if r.device != "mouse" else "kb0"
 			var s := Sessions.quick_session("stock", "random", 4, true)

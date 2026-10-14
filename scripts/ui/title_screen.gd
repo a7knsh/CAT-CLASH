@@ -97,7 +97,7 @@ func _draw() -> void:
 	if int(t * 2.0) % 2 == 0:
 		PixelFont.draw_text(self, Vector2(240, 150), "PRESS ANY BUTTON", Pal.UI_TEXT, 1, 1)
 	PixelFont.draw_text(self, Vector2(476, 260), "V" + str(ProjectSettings.get_setting("application/config/version")), Pal.UI_DIM, 1, 2)
-	PixelFont.draw_text(self, Vector2(4, 260), "1-4 PLAYERS · KEYBOARD + GAMEPADS", Pal.UI_DIM)
+	PixelFont.draw_text(self, Vector2(4, 260), "1-10 PLAYERS · LAN PARTY + SHARED SCREEN", Pal.UI_DIM)
 	if SaveData.load_status == "recovered":
 		PixelFont.draw_text(self, Vector2(240, 166), "SAVE RESTORED FROM BACKUP", Pal.UI_BAD, 1, 1)
 	elif SaveData.load_status == "reset":

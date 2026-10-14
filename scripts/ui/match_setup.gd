@@ -39,7 +39,13 @@ func _rebuild() -> void:
 			continue
 		if r == "friendly_fire" and mdef.teams == "optional" and not bool(rules.get("teams_on", false)):
 			continue
-		menu.add(r, ModeDefs.RULES[r].label, "choice", ModeDefs.rule_label(r, rules.get(r)))
+		# LAN is players-only; difficulty only matters for Survival/Boss enemies.
+		if r == "bot_level" and Net.active and not (mode_id in ["survival", "boss"]):
+			continue
+		var lbl: String = ModeDefs.RULES[r].label
+		if r == "bot_level" and mode_id in ["survival", "boss"]:
+			lbl = "ENEMY DIFFICULTY"
+		menu.add(r, lbl, "choice", ModeDefs.rule_label(r, rules.get(r)))
 	menu.add("start", "START!" if mode_id != "tournament" else "CREATE BRACKET", "button", "", {"color": Pal.UI_GOOD})
 	menu.add("back", "BACK")
 	menu.index = clampi(keep, 0, menu.items.size() - 1)
@@ -54,7 +60,7 @@ func _arena_name(id: String) -> String:
 func _on_menu(r: Dictionary) -> void:
 	match r.action:
 		"back":
-			Router.goto("lobby")
+			_back()
 		"change":
 			if r.id == "arena":
 				arena = cycle(arenas, arena, r.delta)
@@ -63,23 +69,35 @@ func _on_menu(r: Dictionary) -> void:
 			_rebuild()
 		"activate":
 			if r.id == "back":
-				Router.goto("lobby")
+				_back()
 			elif r.id == "start":
 				_start()
 
 
+func _back() -> void:
+	Net.request("setup", {"on": false})
+	Router.goto("lobby")
+
+
 func _start() -> void:
-	Router.session["rules"] = rules.duplicate()
-	Router.session["arena"] = arena
-	SaveData.data["last_setup"] = {"mode": mode_id, "rules": rules.duplicate(), "arena": arena, "players": Router.session.get("players", [])}
+	# The lobby (local or LAN) is the source of truth for who plays.
+	var s := Net.build_session(rules.duplicate(), arena)
+	s.mode = mode_id
+	Router.session = s
+	SaveData.data["last_setup"] = {"mode": mode_id, "rules": rules.duplicate(), "arena": arena}
 	SaveData.save()
-	for p in Router.session.players:
-		p["bot_level"] = int(rules.get("bot_level", 1))
+	if Net.active:
+		# Resolve "random" once so every device builds the same arena.
+		if arena == "random":
+			s.arena = GameDB.random_arena()
+		Net.start_match(s)
+		return
 	if mode_id == "tournament":
 		_create_tournament()
 		Router.goto("tournament")
 		return
 	Router.tournament = {}
+	Net.in_match = false
 	Router.goto("match")
 
 

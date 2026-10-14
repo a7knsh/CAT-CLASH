@@ -56,6 +56,18 @@ var _items_node: Node2D
 var _fighters_node: Node2D
 var headless_fast := false
 
+# LAN multiplayer (see Net / net_hub.gd)
+var net_host := false
+var net_client := false
+var _nid := 0
+var _events: Array = []
+var _snap_t := 0.0
+var _snap_age := 0.0
+var _started := false
+var _net_items: Dictionary = {}
+var _net_crates: Dictionary = {}
+var _net_powerups: Dictionary = {}
+
 
 func setup(_params: Dictionary) -> void:
 	session = Router.session.duplicate(true)
@@ -64,6 +76,8 @@ func setup(_params: Dictionary) -> void:
 func _ready() -> void:
 	rng.randomize()
 	process_mode = Node.PROCESS_MODE_PAUSABLE
+	net_host = Net.active and Net.is_host and session.get("net", false)
+	net_client = Net.active and not Net.is_host and session.get("net", false)
 	mode_id = session.get("mode", "ffa")
 	rules = ModeDefs.default_rules(mode_id)
 	for k in session.get("rules", {}).keys():
@@ -118,11 +132,24 @@ func _ready() -> void:
 	InputHub.device_connected.connect(_on_device_connected)
 	var mus: Dictionary = arena.def.music
 	AudioHub.play_music("arena_" + arena_id, mus)
+	if net_host or net_client:
+		Net.match_ctl = self
+	if net_host:
+		fx.recorder = net_event
+		AudioHub.recorder = net_event
+	_started = true
+	if net_client:
+		# Clients never simulate: they wait for the host's snapshots.
+		phase = "intro"
+		return
 	_start_round()
 
 
 func _exit_tree() -> void:
 	Engine.time_scale = 1.0
+	AudioHub.recorder = Callable()
+	if Net.match_ctl == self:
+		Net.match_ctl = null
 	if InputHub.device_disconnected.is_connected(_on_device_disconnected):
 		InputHub.device_disconnected.disconnect(_on_device_disconnected)
 	if InputHub.device_connected.is_connected(_on_device_connected):
@@ -135,14 +162,47 @@ func add_fighter(pc: Dictionary) -> CatFighter:
 	var f := CatFighter.new()
 	_fighters_node.add_child(f)
 	var cfg := pc.duplicate()
-	cfg["hp"] = rules.get("hp", 100)
+	if not cfg.has("hp"):
+		cfg["hp"] = rules.get("hp", 100)
+	# Map devices for LAN games: local controllers stay local, remote players'
+	# inputs arrive through Net ("net:<peer>:<device>"), clients drive nothing.
+	if cfg.has("owner") and Net.active and session.get("net", false):
+		var own: int = int(cfg.owner)
+		if cfg.get("bot", false) or cfg.get("enemy", false) or cfg.get("dummy", false):
+			cfg["device"] = ""
+		elif own == Net.my_id:
+			cfg["device"] = cfg.get("ldev", "")
+		elif net_host:
+			cfg["device"] = "net:%d:%s" % [own, cfg.get("ldev", "")]
+		else:
+			cfg["device"] = ""
+		if net_client:
+			cfg["bot"] = false
+			cfg["is_remote_bot"] = pc.get("bot", false)
 	if mode and not mode.teams_active() and not cfg.get("enemy", false) and not cfg.get("dummy", false):
 		cfg["team"] = cfg.get("slot", 0)
 	elif mode and ModeDefs.get_def(mode_id).get("teams", "") == "coop" and not cfg.get("enemy", false):
 		cfg["team"] = 0
 	f.setup(cfg, self)
 	f.stocks = int(rules.get("stocks", 3))
+	f.owner_peer = int(cfg.get("owner", 1))
+	if cfg.has("nid"):
+		f.nid = int(cfg.nid)
+		_nid = maxi(_nid, f.nid + 1)
+	else:
+		f.nid = _nid
+		_nid += 1
+	if net_client:
+		f.is_bot = cfg.get("is_remote_bot", false)
+		f.brain = null
+		f.collision_layer = 0
+		f.collision_mask = 0
 	fighters.append(f)
+	if net_host and _started:
+		var ev_cfg := cfg.duplicate()
+		ev_cfg["nid"] = f.nid
+		ev_cfg["hp"] = f.max_hp
+		net_event(["f", ev_cfg])
 	return f
 
 
@@ -238,6 +298,10 @@ func _start_round() -> void:
 	var same_weapon := WeaponDefs.pick_random(rules.get("weapon_set", "all"), rng)
 	var i := 0
 	for f in players():
+		if f.departed:
+			f.eliminated = true
+			f.vanish()
+			continue
 		f.eliminated = false
 		f.stocks = int(rules.get("stocks", 3))
 		var sp: Vector2 = pts[i % pts.size()]
@@ -284,8 +348,17 @@ func announce(text: String, color: Color) -> void:
 
 
 func _physics_process(dt: float) -> void:
+	if net_client:
+		_client_tick(dt)
+		return
 	if finished:
 		return
+	if net_host:
+		_snap_t += dt
+		if _snap_t >= 1.0 / Net.SNAPSHOT_HZ:
+			_snap_t = 0.0
+			Net.send_snapshot(build_snapshot(), _events)
+			_events = []
 	phase_t += dt
 	banner_t -= dt
 	match phase:
@@ -905,6 +978,7 @@ func fx_line(a: Vector2, b: Vector2, c: Color) -> void:
 
 func spawn_item(data: Dictionary, pos: Vector2, vel: Vector2, by: CatFighter, is_throw: bool) -> WeaponItem:
 	var it := WeaponItem.new()
+	it.set_meta("nid", _next_nid())
 	_items_node.add_child(it)
 	it.setup(data.duplicate(), pos, vel, by, is_throw, self)
 	_trim_items()
@@ -978,6 +1052,7 @@ func _spawn_items(dt: float) -> void:
 			var x: float = xs[rng.randi_range(0, xs.size() - 1)] + rng.randf_range(-20, 20)
 			if rng.randf() < 0.3:
 				var c := Crate.new()
+				c.set_meta("nid", _next_nid())
 				_items_node.add_child(c)
 				c.setup(Vector2(x, -30), self)
 				crates.append(c)
@@ -1000,9 +1075,12 @@ func _spawn_items(dt: float) -> void:
 
 func spawn_powerup(pos: Vector2, kind: String = "") -> void:
 	var kinds: Array = PowerUp.TYPES.keys()
+	if net_host:
+		kinds.erase("decoy")  # the decoy clone is CPU-driven; LAN is players-only
 	if kind == "":
 		kind = kinds[rng.randi_range(0, kinds.size() - 1)]
 	var pu := PowerUp.new()
+	pu.set_meta("nid", _next_nid())
 	_items_node.add_child(pu)
 	pu.setup(kind, pos, self)
 	powerups.append(pu)
@@ -1187,8 +1265,15 @@ func _finish_match() -> void:
 	Engine.time_scale = 1.0
 	var summary := build_summary()
 	Router.last_result = summary
+	if net_host:
+		Net.send_snapshot(build_snapshot(), _events)
+		_events = []
+		Net.send_end(summary)
 	if session.get("smoke", false):
 		return
+	if Net.active and session.get("net", false):
+		summary = _local_view(summary)
+		Router.last_result = summary
 	summary["rewards"] = SaveData.record_match(summary)
 	if not Router.tournament.is_empty() and Router.tournament.get("active", false):
 		Router.tournament["last"] = summary
@@ -1206,7 +1291,7 @@ func build_summary() -> Dictionary:
 		pl.append({
 			"slot": f.slot, "name": f.display_name, "bot": f.is_bot, "profile": f.profile_idx, "preset": f.preset_id,
 			"team": f.team, "skin": f.skin, "stats": f.stats.duplicate(true), "won": f in winners, "score": f.score,
-			"place": place, "device": f.device,
+			"place": place, "device": f.device, "owner": f.owner_peer,
 		})
 		place += 1
 	return {
@@ -1242,5 +1327,365 @@ func convert_to_bot(device: String) -> void:
 	disconnect_msg = ""
 
 
+## LAN host: a local controller is gone and the players chose to go on
+## without that player (no CPU takeover in LAN games).
+func remove_player(device: String) -> void:
+	for f in players():
+		if f.device == device and not f.is_bot and not f.departed:
+			_depart(f)
+	disconnect_msg = ""
+
+
 func restart_match() -> void:
+	if net_host:
+		Net.start_match(Net.current_session)
+		return
 	Router.goto("match")
+
+
+# ============================================================ LAN network
+#
+# Host: records effects/sounds/puppet reactions into _events and streams a
+# snapshot of the whole match state at Net.SNAPSHOT_HZ. Client: applies
+# snapshots (positions dead-reckoned between them for smoothness) and replays
+# event batches. Clients never run gameplay logic, so there's no divergence.
+
+func _next_nid() -> int:
+	_nid += 1
+	return _nid - 1
+
+
+func net_event(ev: Array) -> void:
+	if net_host:
+		if _events.size() < 400:
+			_events.append(ev)
+
+
+func _nid_of(n: Node) -> int:
+	return int(n.get_meta("nid", -1))
+
+
+func build_snapshot() -> Dictionary:
+	var fl: Array = []
+	for f in fighters:
+		if not is_instance_valid(f):
+			continue
+		var atk := ""
+		var awid := ""
+		var at := 0.0
+		var ach := 0.0
+		var acharging := false
+		if not f.attack.is_empty() and f.attack.has("mv"):
+			atk = f.attack.mv.id
+			awid = f.attack.get("wid", f.weapon_id())
+			at = f.attack.t
+			ach = f.attack.get("charge", 0.0)
+			acharging = f.attack.get("charging", false)
+		fl.append([f.nid, f.global_position, f.velocity, f.state, f.state_t, f.facing, f.hp, f.max_hp, f.stocks, f.score,
+			f.weapon_id(), int(f.weapon.get("ammo", -1)), atk, awid, at, ach, acharging, f.status, f.size_mult,
+			f.visible, f.dead, f.eliminated, f.fainting, f.guard, f.respawn_timer, f.paint_color, f.hitstop, f.on_floor,
+			f.team, f.display_name, f.combo_dealt])
+	var il: Array = []
+	for it in items():
+		il.append([_nid_of(it), it.data.duplicate(), it.global_position, it.ang, it.resting, it.rest_t, it.age, it.permanent])
+	var pl: Array = []
+	for p in proj.list:
+		if not p.dead:
+			pl.append([p.kind, p.pos, p.vel, p.age, p.color, p.vortex, p.radius])
+	var cl: Array = []
+	for c in crates:
+		if is_instance_valid(c):
+			cl.append([_nid_of(c), c.global_position, c.resting, c.t])
+	var ul: Array = []
+	for pu in powerups:
+		if is_instance_valid(pu):
+			ul.append([_nid_of(pu), pu.kind, pu.base_pos, pu.t])
+	var bl: Array = []
+	if boss and is_instance_valid(boss):
+		var b: MechaBoss = boss
+		bl = [b.global_position, b.hp, b.max_hp, b.phase, b.state, b.st, b.facing, b.flash, b.laser_ang, b.laser_from, b.laser_to, b.stomp_x, b.dead, b.visible, b.t]
+	var hz: Array = []
+	for h in arena.hazards:
+		hz.append([h.t, h.phase, h.phase_t, h.lava_y, h.crusher_y, h.target_x])
+	return {
+		"m": [phase, phase_t, time, match_time, round_num, round_wins, banner_text, banner_color, banner_t, banner_big,
+			gravity_mult, mod_slippery, mod_giant_weapons, mod_bouncy, fighting],
+		"f": fl, "i": il, "p": pl, "c": cl, "u": ul, "b": bl, "a": [arena.t, hz], "md": mode.net_state(),
+	}
+
+
+func apply_snapshot(s: Dictionary) -> void:
+	if not net_client or finished:
+		return
+	_snap_age = 0.0
+	var m: Array = s.m
+	phase = m[0]
+	phase_t = m[1]
+	time = m[2]
+	match_time = m[3]
+	round_num = m[4]
+	round_wins = m[5]
+	banner_text = m[6]
+	banner_color = m[7]
+	banner_t = m[8]
+	banner_big = m[9]
+	gravity_mult = m[10]
+	mod_slippery = m[11]
+	mod_giant_weapons = m[12]
+	mod_bouncy = m[13]
+	fighting = m[14]
+	# Fighters
+	var seen := {}
+	var by_id := {}
+	for f in fighters:
+		by_id[f.nid] = f
+	for row in s.f:
+		var f: CatFighter = by_id.get(int(row[0]))
+		if f == null:
+			continue
+		seen[f] = true
+		f.global_position = row[1]
+		f.velocity = row[2]
+		if f.state != row[3]:
+			f.state = row[3]
+		f.state_t = row[4]
+		f.facing = row[5]
+		f.hp = row[6]
+		f.max_hp = row[7]
+		f.stocks = row[8]
+		f.score = row[9]
+		var wid: String = row[10]
+		f.weapon = {} if wid == "" else {"id": wid, "ammo": row[11]}
+		var atk: String = row[12]
+		if atk == "":
+			f.attack = {}
+		else:
+			var ms := AttackData.moveset(row[13])
+			if ms.has(atk):
+				f.attack = {"mv": ms[atk], "t": row[14], "charge": row[15], "charging": row[16], "wid": row[13]}
+		if f.puppet:
+			f.puppet.charge_glow = (float(row[15]) / 0.8) if row[16] else 0.0
+		f.status = row[17]
+		if absf(f.size_mult - float(row[18])) > 0.01:
+			f.set_size(row[18])
+		f.visible = row[19]
+		f.dead = row[20]
+		f.eliminated = row[21]
+		f.fainting = row[22]
+		f.guard = row[23]
+		f.respawn_timer = row[24]
+		f.paint_color = row[25]
+		f.hitstop = row[26]
+		f.on_floor = row[27]
+		f.team = row[28]
+		f.display_name = row[29]
+		f.combo_dealt = row[30]
+	for f in fighters.duplicate():
+		if not seen.has(f):
+			fighters.erase(f)
+			f.queue_free()
+	# Items
+	var live := {}
+	for row in s.i:
+		var id: int = row[0]
+		live[id] = true
+		var it: WeaponItem = _net_items.get(id)
+		if it == null or not is_instance_valid(it):
+			it = WeaponItem.new()
+			it.set_meta("nid", id)
+			_items_node.add_child(it)
+			it.setup(row[1], row[2], Vector2.ZERO, null, false, self)
+			_net_items[id] = it
+		it.data = row[1]
+		it.global_position = row[2]
+		it.ang = row[3]
+		it.resting = row[4]
+		it.rest_t = row[5]
+		it.age = row[6]
+		it.permanent = row[7]
+		it.queue_redraw()
+	_drop_missing(_net_items, live)
+	# Projectiles (rebuilt every snapshot, dead-reckoned in between)
+	proj.list.clear()
+	for row in s.p:
+		var p := ProjectileSystem.Proj.new()
+		p.kind = row[0]
+		p.pos = row[1]
+		p.vel = row[2]
+		p.age = row[3]
+		p.color = row[4]
+		p.vortex = row[5]
+		p.radius = row[6]
+		proj.list.append(p)
+	proj.queue_redraw()
+	# Crates & power-ups
+	var live_c := {}
+	for row in s.c:
+		var id: int = row[0]
+		live_c[id] = true
+		var c: Crate = _net_crates.get(id)
+		if c == null or not is_instance_valid(c):
+			c = Crate.new()
+			c.set_meta("nid", id)
+			_items_node.add_child(c)
+			c.setup(row[1], self)
+			_net_crates[id] = c
+		c.global_position = row[1]
+		c.resting = row[2]
+		c.t = row[3]
+		c.queue_redraw()
+	_drop_missing(_net_crates, live_c)
+	var live_u := {}
+	for row in s.u:
+		var id2: int = row[0]
+		live_u[id2] = true
+		var pu: PowerUp = _net_powerups.get(id2)
+		if pu == null or not is_instance_valid(pu):
+			pu = PowerUp.new()
+			pu.set_meta("nid", id2)
+			_items_node.add_child(pu)
+			pu.setup(row[1], row[2], self)
+			_net_powerups[id2] = pu
+		pu.base_pos = row[2]
+		pu.t = row[3]
+		pu.global_position = pu.base_pos + Vector2(0, sin(pu.t * 3.0) * 2.0)
+		pu.queue_redraw()
+	_drop_missing(_net_powerups, live_u)
+	# Boss
+	var bl: Array = s.b
+	if not bl.is_empty():
+		if boss == null or not is_instance_valid(boss):
+			var nb := MechaBoss.new()
+			add_boss(nb)
+			nb.setup(self, players().size())
+		var b: MechaBoss = boss
+		b.global_position = bl[0]
+		b.hp = bl[1]
+		b.max_hp = bl[2]
+		b.phase = bl[3]
+		b.state = bl[4]
+		b.st = bl[5]
+		b.facing = bl[6]
+		b.flash = bl[7]
+		b.laser_ang = bl[8]
+		b.laser_from = bl[9]
+		b.laser_to = bl[10]
+		b.stomp_x = bl[11]
+		b.dead = bl[12]
+		b.visible = bl[13]
+		b.t = bl[14]
+		b.queue_redraw()
+	elif boss and is_instance_valid(boss):
+		boss.queue_free()
+		boss = null
+	# Arena
+	var a: Array = s.a
+	arena.t = a[0]
+	arena.sync_movers()
+	var hz: Array = a[1]
+	for i in mini(hz.size(), arena.hazards.size()):
+		var h: Hazard = arena.hazards[i]
+		var r: Array = hz[i]
+		h.t = r[0]
+		h.phase = r[1]
+		h.phase_t = r[2]
+		h.lava_y = r[3]
+		h.crusher_y = r[4]
+		h.target_x = r[5]
+		h.queue_redraw()
+	mode.apply_net_state(s.md)
+
+
+func _drop_missing(store: Dictionary, live: Dictionary) -> void:
+	for id in store.keys():
+		if not live.has(id):
+			if is_instance_valid(store[id]):
+				store[id].queue_free()
+			store.erase(id)
+
+
+func apply_events(evs: Array) -> void:
+	if not net_client:
+		return
+	var by_id := {}
+	for f in fighters:
+		by_id[f.nid] = f
+	for ev in evs:
+		match str(ev[0]):
+			"snd":
+				AudioHub.play(ev[1], ev[2], ev[3])
+			"duck":
+				AudioHub.duck_music(ev[1], ev[2])
+			"flash":
+				hud.flash(ev[1])
+			"p":
+				var f: CatFighter = by_id.get(int(ev[1]))
+				if f and f.puppet:
+					f.puppet.callv(ev[2], ev[3])
+			"f":
+				var nf := add_fighter(ev[1])
+				by_id[nf.nid] = nf
+			_:
+				fx.replay(ev)
+
+
+func _client_tick(dt: float) -> void:
+	# Dead-reckon between snapshots so motion stays smooth at 60+ FPS.
+	_snap_age += dt
+	if _snap_age < 0.15:
+		for f in fighters:
+			if f.visible and not f.dead:
+				f.global_position += f.velocity * dt
+				f.state_t += dt
+				if not f.attack.is_empty() and not f.attack.get("charging", false):
+					f.attack.t = float(f.attack.t) + dt
+		for p in proj.list:
+			p.pos += p.vel * dt
+			p.age += dt
+		proj.queue_redraw()
+	banner_t -= dt
+	camera.tick(dt)
+
+
+## Client: the host finished the match.
+func client_finish(summary: Dictionary) -> void:
+	if finished:
+		return
+	finished = true
+	var local := _local_view(summary)
+	local["rewards"] = SaveData.record_match(local)
+	Router.last_result = local
+	Router.goto("results")
+
+
+## Only this device's own human players count for its local stats & rewards.
+func _local_view(summary: Dictionary) -> Dictionary:
+	var out := summary.duplicate(true)
+	for p in out.players:
+		if int(p.get("owner", 1)) != Net.my_id:
+			p["bot"] = true
+	return out
+
+
+## Host: a client device left mid-match. LAN games are players-only, so its
+## cats leave the fight instead of being handed to a CPU.
+func on_peer_left(peer: int) -> void:
+	for f in fighters:
+		if f.owner_peer == peer and not f.is_bot and not f.departed:
+			_depart(f)
+
+
+## Takes a player out of the match for good: drops what they hold, marks
+## them LEFT and eliminates them. The match carries on without them.
+func _depart(f: CatFighter) -> void:
+	f.departed = true
+	f.input.device = ""
+	f.display_name = f.display_name.substr(0, 8) + " (LEFT)"
+	if not f.weapon.is_empty():
+		f.drop_weapon(false)
+	if mode:
+		mode._eliminate(f)
+	f.eliminated = true
+	f.respawn_timer = -1.0
+	if not f.dead:
+		f.vanish()

@@ -1,81 +1,95 @@
 extends Screen
-## Local multiplayer lobby. Any keyboard half or gamepad joins by pressing
-## its JUMP/confirm button; each player then picks a cat, team and profile
-## with their own device and readies up. HEAVY adds a CPU, TAUNT removes one.
+## Lobby for up to 10 fighters, shared by local play and LAN games.
+##
+## Every device (keyboard half / gamepad) on every machine joins by pressing
+## JUMP/confirm, then picks a cat and team and readies up with its own
+## controls. The lobby state lives in Net (the host is the authority in LAN
+## games; offline, this machine is). The host / local player 1 also:
+##   HEAVY (+) / TAUNT (-)  add or remove CPU fighters
+##   BLOCK / DODGE          change game mode
+##   confirm when all ready continue to match setup
 
-const MAX_SLOTS := 4
+const COLS := 5
+const ROWS := ["CAT", "TEAM", "READY"]
 
-var mode_id := "ffa"
-var mdef: Dictionary
-var slots: Array = []
+var local_ui: Dictionary = {}     # device -> {row, preset}
+var presets: Array = []
 var puppets: Array = []
 var msg := ""
 var msg_t := 0.0
-var presets: Array = []
 var _rng := RandomNumberGenerator.new()
 
 
 func _build() -> void:
 	_rng.randomize()
-	mode_id = Router.session.get("mode", "ffa")
-	mdef = ModeDefs.get_def(mode_id)
 	presets = SaveData.all_presets()
-	for i in MAX_SLOTS:
-		slots.append({"kind": "empty", "device": "", "preset": 0, "team": i % 2, "profile": -1, "ready": false, "row": 0})
+	var want: String = Router.session.get("mode", Net.lobby.get("mode", "ffa"))
+	if Net.is_host and want != Net.lobby.get("mode", ""):
+		if Net.active and want in ["training", "tournament"]:
+			want = "ffa"
+		Net.request("mode", {"mode": want})
+	if Net.is_host:
+		Net.request("setup", {"on": false})
+	for i in Net.MAX_FIGHTERS:
 		var p := CatPuppet.new()
-		p.scale = Vector2(2, 2)
-		p.position = Vector2(_slot_rect(i).position.x + _slot_rect(i).size.x * 0.5, 128)
+		p.scale = Vector2(1.5, 1.5)
+		var r := _slot_rect(i)
+		p.position = Vector2(r.position.x + r.size.x * 0.5, r.position.y + 56)
 		p.visible = false
 		add_child(p)
 		puppets.append(p)
-	# Restore the previous lobby (same devices) for quick rematches.
-	var last: Dictionary = SaveData.data.get("last_setup", {})
-	var prev: Array = Router.session.get("players", []) if Router.session.has("players") else []
-	if prev.is_empty() and last.get("mode", "") == mode_id:
-		prev = last.get("players", [])
-	for pc in prev:
-		var s: int = pc.get("slot", 0)
-		if s >= MAX_SLOTS:
-			continue
-		if pc.get("bot", false):
-			slots[s] = {"kind": "bot", "device": "", "preset": _preset_index(pc.get("preset", "")), "team": pc.get("team", s % 2), "profile": -1, "ready": true, "row": 0}
-		elif InputHub.is_connected_device(pc.get("device", "")):
-			slots[s] = {"kind": "human", "device": pc.device, "preset": _preset_index(pc.get("preset", "")), "team": pc.get("team", s % 2), "profile": pc.get("profile", -1), "ready": false, "row": 0}
+	Net.lobby_changed.connect(_refresh)
 	_refresh()
 
 
-func _preset_index(id: String) -> int:
-	for i in presets.size():
-		if presets[i].id == id:
-			return i
-	return _rng.randi_range(0, presets.size() - 1)
+func _exit_tree() -> void:
+	if Net.lobby_changed.is_connected(_refresh):
+		Net.lobby_changed.disconnect(_refresh)
+
+
+func _slots() -> Array:
+	return Net.lobby.get("slots", [])
+
+
+func _mode_id() -> String:
+	return Net.lobby.get("mode", "ffa")
+
+
+func _mdef() -> Dictionary:
+	return ModeDefs.get_def(_mode_id())
 
 
 func _slot_rect(i: int) -> Rect2:
-	return Rect2(10 + i * 117, 40, 109, 180)
+	return Rect2(6 + (i % COLS) * 94, 30 + (i / COLS) * 100, 90, 96)
 
 
 func _team_mode() -> bool:
-	return mdef.teams in ["forced", "optional"]
+	return _mdef().teams in ["forced", "optional"]
 
 
-func _max_players() -> int:
-	return mini(MAX_SLOTS, int(mdef.max)) if mode_id != "tournament" else MAX_SLOTS
+func _my_slot(device: String) -> int:
+	var s := _slots()
+	for i in s.size():
+		if s[i].kind == "human" and int(s[i].owner) == Net.my_id and s[i].device == device:
+			return i
+	return -1
 
 
-func _count() -> int:
-	return slots.filter(func(s): return s.kind != "empty").size()
+func _local_slots() -> Array:
+	var out: Array = []
+	var s := _slots()
+	for i in s.size():
+		if s[i].kind == "human" and int(s[i].owner) == Net.my_id:
+			out.append(i)
+	return out
 
 
 func _humans() -> Array:
-	return slots.filter(func(s): return s.kind == "human")
+	return _slots().filter(func(s): return s.kind == "human")
 
 
-func _slot_of(device: String) -> int:
-	for i in slots.size():
-		if slots[i].kind == "human" and slots[i].device == device:
-			return i
-	return -1
+func _count() -> int:
+	return _slots().filter(func(s): return s.kind != "empty").size()
 
 
 func _say(m: String) -> void:
@@ -84,138 +98,150 @@ func _say(m: String) -> void:
 
 
 func _refresh() -> void:
-	for i in MAX_SLOTS:
-		var s: Dictionary = slots[i]
+	var s := _slots()
+	for i in puppets.size():
 		var p: CatPuppet = puppets[i]
-		p.visible = s.kind != "empty"
+		var sl: Dictionary = s[i] if i < s.size() else {}
+		p.visible = not sl.is_empty() and sl.kind != "empty" and not (sl.skin as Dictionary).is_empty()
 		if p.visible:
-			p.skin = Sprites.full_skin(presets[s.preset % presets.size()])
-			p.preview_facing = 1 if i < 2 else -1
-			p.preview_state = "victory" if s.ready else "idle"
+			p.skin = Sprites.full_skin(sl.skin)
+			p.preview_facing = 1 if i % COLS < 3 else -1
+			p.preview_state = "victory" if sl.ready else "idle"
 
+
+func _preset_skin(idx: int) -> Dictionary:
+	return Sprites.full_skin(presets[posmod(idx, presets.size())])
+
+
+func _send_cat(device: String, idx: int) -> void:
+	var p: Dictionary = presets[posmod(idx, presets.size())]
+	Net.request("set", {"device": device, "skin": _preset_skin(idx), "preset": p.id, "mastery": SaveData.mastery_title(p.id)})
+
+
+# ------------------------------------------------------------------ input
 
 func _update(dt: float) -> void:
 	msg_t -= dt
 	for e in InputHub.menu_events:
 		var d: String = e.device
-		var si := _slot_of(d)
-		if si < 0:
-			match e.action:
-				"confirm":
-					_join(d)
-				"back":
-					if _humans().is_empty():
-						AudioHub.play("ui_back")
-						Router.goto("main_menu" if mode_id in ["training", "tournament"] else "mode_select")
-						return
-				"alt":
-					if not _humans().is_empty():
-						_add_bot()
-				"alt2":
-					_remove_bot()
-			continue
-		var s: Dictionary = slots[si]
+		var si := _my_slot(d)
 		match e.action:
-			"up":
-				if not s.ready:
-					s.row = posmod(s.row - 1, 4)
-					AudioHub.play("ui_move", -10.0)
-			"down":
-				if not s.ready:
-					s.row = posmod(s.row + 1, 4)
+			"alt":
+				if Net.is_host:
+					_add_bot()
+				continue
+			"alt2":
+				if Net.is_host:
+					Net.request("remove_bot")
+				continue
+			"tab_l", "tab_r":
+				if Net.is_host:
+					_cycle_mode(-1 if e.action == "tab_l" else 1)
+				continue
+		if si < 0:
+			if e.action == "confirm":
+				_join(d)
+			elif e.action == "back" and _local_slots().is_empty():
+				_leave_screen()
+				return
+			continue
+		var ui: Dictionary = local_ui.get(d, {"row": 0, "preset": 0})
+		local_ui[d] = ui
+		var sl: Dictionary = _slots()[si]
+		match e.action:
+			"up", "down":
+				if not sl.ready:
+					ui.row = posmod(int(ui.row) + (-1 if e.action == "up" else 1), ROWS.size())
 					AudioHub.play("ui_move", -10.0)
 			"left", "right":
-				if not s.ready:
-					_change(si, -1 if e.action == "left" else 1)
+				if sl.ready:
+					continue
+				var dl := -1 if e.action == "left" else 1
+				AudioHub.play("ui_move", -8.0)
+				if int(ui.row) == 0:
+					ui.preset = posmod(int(ui.preset) + dl, presets.size())
+					_send_cat(d, ui.preset)
+				elif int(ui.row) == 1 and _team_mode():
+					Net.request("set", {"device": d, "team": posmod(int(sl.team) + dl, 2)})
 			"confirm":
-				if _all_ready() and s.ready:
+				if sl.ready and _all_ready() and Net.is_host:
 					_continue()
 					return
-				if s.row == 3 or s.ready:
-					s.ready = true
+				if int(ui.row) == ROWS.size() - 1 or sl.ready:
+					Net.request("set", {"device": d, "ready": true})
 					AudioHub.play("ui_select")
-					AudioHub.meow(1.0 + si * 0.1)
-					if _all_ready():
-						AudioHub.play("powerup", -4.0)
+					AudioHub.meow(1.0 + si * 0.05)
 				else:
-					s.row += 1
+					ui.row = int(ui.row) + 1
 					AudioHub.play("ui_move", -8.0)
-			"back":
-				if s.ready:
-					s.ready = false
-					AudioHub.play("ui_back")
-				else:
-					slots[si] = {"kind": "empty", "device": "", "preset": 0, "team": si % 2, "profile": -1, "ready": false, "row": 0}
-					AudioHub.play("ui_back")
-			"alt":
-				_add_bot()
-			"alt2":
-				_remove_bot()
 			"start":
-				if _all_ready():
+				if Net.is_host and _all_ready():
 					_continue()
 					return
-	_refresh()
+			"back":
+				AudioHub.play("ui_back")
+				if sl.ready:
+					Net.request("set", {"device": d, "ready": false})
+				else:
+					Net.request("leave", {"device": d})
+					local_ui.erase(d)
 
 
 func _join(device: String) -> void:
-	if _count() >= _max_players():
-		# Replace a bot if the lobby is full of CPUs.
-		for i in slots.size():
-			if slots[i].kind == "bot":
-				slots[i] = {"kind": "empty"}
-				break
-		if _count() >= _max_players():
-			_say("LOBBY FULL")
-			AudioHub.play("ui_error")
-			return
-	for i in slots.size():
-		if slots[i].kind == "empty":
-			var prof := -1
-			var hum := _humans().size()
-			if hum < SaveData.profiles().size():
-				prof = hum
-			slots[i] = {"kind": "human", "device": device, "preset": _rng.randi_range(0, presets.size() - 1), "team": i % 2, "profile": prof, "ready": false, "row": 0}
-			AudioHub.play("ui_select")
-			AudioHub.meow(1.2)
-			return
+	var idx := _rng.randi_range(0, presets.size() - 1)
+	local_ui[device] = {"row": 0, "preset": idx}
+	var p: Dictionary = presets[idx]
+	var prof := _local_slots().size()
+	if prof >= SaveData.profiles().size():
+		prof = -1
+	var pname := Net.player_name if Net.active else ""
+	if pname == "" or _local_slots().size() > 0:
+		pname = SaveData.profile_name(prof) if prof >= 0 else "P%d" % (_count() + 1)
+		if Net.active and _local_slots().size() > 0:
+			pname = "%s %d" % [Net.player_name.substr(0, 9), _local_slots().size() + 1]
+	Net.request("join", {"device": device, "skin": _preset_skin(idx), "preset": p.id, "name": pname,
+		"mastery": SaveData.mastery_title(p.id), "profile": prof})
+	AudioHub.play("ui_select")
+	AudioHub.meow(1.2)
 
 
 func _add_bot() -> void:
-	if mode_id in ["training"]:
+	if Net.active:
+		_say("LAN GAMES ARE PLAYERS ONLY - NO CPUS")
+		AudioHub.play("ui_error")
+		return
+	if _mode_id() == "training":
 		_say("TRAINING USES DUMMIES")
 		return
-	if _count() >= _max_players():
+	if _count() >= Net.mode_max():
 		_say("NO FREE SLOTS")
 		AudioHub.play("ui_error")
 		return
-	for i in slots.size():
-		if slots[i].kind == "empty":
-			slots[i] = {"kind": "bot", "device": "", "preset": _rng.randi_range(0, presets.size() - 1), "team": i % 2, "profile": -1, "ready": true, "row": 0}
-			AudioHub.play("ui_select", -4.0)
-			return
+	var idx := _rng.randi_range(0, CosmeticDefs.ROSTER.size() - 1)
+	var r: Dictionary = CosmeticDefs.ROSTER[idx]
+	Net.request("add_bot", {"skin": Sprites.full_skin(r), "preset": r.id, "name": str(r.name).substr(0, 8)})
+	AudioHub.play("ui_select", -4.0)
 
 
-func _remove_bot() -> void:
-	for i in range(slots.size() - 1, -1, -1):
-		if slots[i].kind == "bot":
-			slots[i] = {"kind": "empty", "device": "", "preset": 0, "team": i % 2, "profile": -1, "ready": false, "row": 0}
-			AudioHub.play("ui_back", -4.0)
-			return
+func _cycle_mode(d: int) -> void:
+	var ids: Array = ModeDefs.ORDER.duplicate()
+	if Net.active:
+		ids.erase("training")
+		ids.erase("tournament")
+	var cur := ids.find(_mode_id())
+	Net.request("mode", {"mode": ids[posmod(cur + d, ids.size())]})
+	AudioHub.play("ui_move", -6.0)
 
 
-func _change(si: int, d: int) -> void:
-	var s: Dictionary = slots[si]
-	AudioHub.play("ui_move", -8.0)
-	match int(s.row):
-		0:
-			s.preset = posmod(int(s.preset) + d, presets.size())
-		1:
-			if _team_mode():
-				s.team = posmod(int(s.team) + d, 2)
-		2:
-			var n := SaveData.profiles().size()
-			s.profile = posmod(int(s.profile) + 1 + d, n + 1) - 1
+func _leave_screen() -> void:
+	AudioHub.play("ui_back")
+	if Net.active:
+		Net.leave()
+		Router.goto("net")
+	elif _mode_id() in ["training", "tournament"]:
+		Router.goto("main_menu")
+	else:
+		Router.goto("mode_select")
 
 
 func _all_ready() -> bool:
@@ -230,30 +256,27 @@ func _all_ready() -> bool:
 
 func _valid_setup() -> String:
 	var n := _count()
-	var need := int(mdef.min)
-	if n < need:
-		return "NEED %d+ PLAYERS (HEAVY ADDS A CPU)" % need
-	if n > int(mdef.max) and mode_id != "tournament":
-		return "MAX %d PLAYERS" % int(mdef.max)
-	if mdef.teams == "forced":
-		var t0 := slots.filter(func(s): return s.kind != "empty" and int(s.team) == 0).size()
-		var t1 := slots.filter(func(s): return s.kind != "empty" and int(s.team) == 1).size()
+	var md := _mdef()
+	if n < int(md.min):
+		if Net.active:
+			return "NEED %d+ PLAYERS - INVITE MORE DEVICES" % int(md.min)
+		return "NEED %d+ FIGHTERS (HEAVY ADDS A CPU)" % int(md.min)
+	if n > Net.mode_max():
+		return "MAX %d FIGHTERS IN THIS MODE" % Net.mode_max()
+	if md.teams == "forced":
+		var t0 := _slots().filter(func(s): return s.kind != "empty" and int(s.team) == 0).size()
+		var t1 := _slots().filter(func(s): return s.kind != "empty" and int(s.team) == 1).size()
 		if t0 == 0 or t1 == 0:
 			return "BOTH TEAMS NEED A CAT"
 	return ""
 
 
 func _continue() -> void:
-	var players: Array = []
-	for i in slots.size():
-		var s: Dictionary = slots[i]
-		if s.kind == "empty":
-			continue
-		var bot: bool = s.kind == "bot"
-		var cfg := Sessions.player_cfg(i, s.device, presets[s.preset % presets.size()].id, int(s.team), int(s.profile), bot, int(Settings.get_value("bot_difficulty")))
-		players.append(cfg)
-	Router.session["players"] = players
-	Router.session["mode"] = mode_id
+	if not Net.is_host:
+		return
+	Router.session = Net.build_session(ModeDefs.default_rules(_mode_id()), "random")
+	Router.session["mode"] = _mode_id()
+	Net.request("setup", {"on": true})
 	AudioHub.play("go", -4.0)
 	Router.goto("setup")
 
@@ -262,92 +285,118 @@ func _on_mouse(ev: InputEvent) -> void:
 	if not (ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT):
 		return
 	var p := get_local_mouse_position()
-	if Rect2(10, 230, 90, 14).has_point(p):
-		if _humans().is_empty():
+	if Rect2(6, 234, 74, 14).has_point(p):
+		if _local_slots().is_empty():
 			_join("kb0")
-		else:
+		elif Net.is_host:
 			_add_bot()
-	elif Rect2(106, 230, 90, 14).has_point(p):
-		_remove_bot()
-	elif Rect2(380, 230, 90, 14).has_point(p):
+	elif Rect2(84, 234, 74, 14).has_point(p) and Net.is_host:
+		Net.request("remove_bot")
+	elif Rect2(162, 234, 156, 14).has_point(p) and Net.is_host:
+		_cycle_mode(1)
+	elif Rect2(322, 234, 74, 14).has_point(p):
+		_leave_screen()
+	elif Rect2(400, 234, 74, 14).has_point(p) and Net.is_host:
+		if not _all_ready():
+			for i in _local_slots():
+				Net.request("set", {"device": _slots()[i].device, "ready": true})
 		if _all_ready():
 			_continue()
 		else:
-			for s in _humans():
-				s.ready = true
-			if _all_ready():
-				_continue()
-			else:
-				_say(_valid_setup())
-	elif Rect2(284, 230, 90, 14).has_point(p):
-		Router.goto("main_menu" if mode_id in ["training", "tournament"] else "mode_select")
+			_say(_valid_setup())
 
+
+# ------------------------------------------------------------------ draw
 
 func _paint() -> void:
-	UI.title(self, mdef.name + " · JOIN IN!", 6)
-	for i in MAX_SLOTS:
-		_draw_slot(i)
-	# Bottom buttons (mouse friendly) and status
-	var labels := ["+ CPU", "- CPU", "BACK", "START"]
-	var xs := [10, 106, 284, 380]
-	if _humans().is_empty():
-		labels[0] = "JOIN (KB)"
-	for k in 4:
-		var r := Rect2(xs[k], 230, 90, 14)
-		UI.panel(self, r, Pal.UI_PANEL2 if not (k == 3 and _all_ready()) else Color("2a6a3a"), Pal.UI_EDGE, false)
-		PixelFont.draw_text(self, r.position + Vector2(45, 3), labels[k], Pal.UI_TEXT, 1, 1)
+	var md := _mdef()
+	var title = md.name
+	if Net.active:
+		title += " · LAN" + (" HOST" if Net.is_host else "")
+	PixelFont.draw_text(self, Vector2(240, 6), title, Pal.UI_HILITE, 2, 1)
+	PixelFont.draw_text(self, Vector2(474, 20), "%d/%d FIGHTERS" % [_count(), Net.mode_max()], Pal.UI_DIM, 1, 2)
+	if Net.active:
+		PixelFont.draw_text(self, Vector2(6, 20), "%d DEVICE%s CONNECTED" % [Net.peer_names.size() if Net.is_host else 0, "S" if Net.peer_names.size() != 1 else ""] if Net.is_host else "HOST: " + str(Net.lobby.get("host", "")), Pal.UI_DIM)
+	var s := _slots()
+	for i in s.size():
+		_draw_slot(i, s[i])
+	# Bottom buttons
+	var labels := ["+ CPU" if not _local_slots().is_empty() else "JOIN", "- CPU", "◄ MODE ►", "BACK", "START"]
+	if Net.active:
+		labels[0] = "JOIN" if _local_slots().is_empty() else "PLAYERS ONLY"
+		labels[1] = "NO CPUS"
+	var rects := [Rect2(6, 234, 74, 14), Rect2(84, 234, 74, 14), Rect2(162, 234, 156, 14), Rect2(322, 234, 74, 14), Rect2(400, 234, 74, 14)]
+	for k in 5:
+		var host_only := k in [1, 2, 4] or (k == 0 and not _local_slots().is_empty())
+		var enabled := Net.is_host or not host_only
+		if Net.active and (k == 1 or (k == 0 and not _local_slots().is_empty())):
+			enabled = false
+		var fill := Pal.UI_PANEL2
+		if k == 4 and _all_ready() and Net.is_host:
+			fill = Color("2a6a3a")
+		UI.panel(self, rects[k], fill if enabled else Pal.UI_PANEL, Pal.UI_EDGE, false)
+		PixelFont.draw_text(self, rects[k].position + Vector2(rects[k].size.x * 0.5, 3), labels[k], Pal.UI_TEXT if enabled else Pal.UI_LOCK, 1, 1)
 	var status := _valid_setup()
 	if msg_t > 0.0:
 		status = msg
-	elif _all_ready():
-		status = "ALL READY! PRESS CONFIRM/START TO CONTINUE"
-	elif _humans().is_empty():
+	elif not Net.is_host and Net.lobby.get("setup", false):
+		status = "THE HOST IS SETTING UP THE MATCH..."
+	elif _local_slots().is_empty():
 		status = "PRESS JUMP / A ON ANY KEYBOARD HALF OR PAD TO JOIN"
+	elif _all_ready():
+		status = "ALL READY! CONFIRM / START TO CONTINUE" if Net.is_host else "ALL READY! WAITING FOR THE HOST..."
 	elif status == "":
-		status = "READY UP: CONFIRM ON ★READY"
-	PixelFont.draw_text(self, Vector2(240, 248), status, Pal.UI_HILITE if _all_ready() else Pal.UI_TEXT, 1, 1)
-	UI.hints(self, "JOIN: JUMP/A · CPU: HEAVY(+) TAUNT(-) · LEAVE: THROW/B")
+		status = "READY UP: CONFIRM ON READY"
+	PixelFont.draw_text(self, Vector2(240, 250), status, Pal.UI_HILITE if _all_ready() else Pal.UI_TEXT, 1, 1)
+	var hint := "JOIN: JUMP/A · LEAVE: THROW/B"
+	if Net.active:
+		hint += " · PLAYERS ONLY" + (" · MODE: BLOCK/DODGE" if Net.is_host else "")
+	elif Net.is_host:
+		hint += " · CPU +/-: HEAVY/TAUNT · MODE: BLOCK/DODGE"
+	UI.hints(self, hint)
 
 
-func _draw_slot(i: int) -> void:
+func _draw_slot(i: int, sl: Dictionary) -> void:
 	var r := _slot_rect(i)
-	var s: Dictionary = slots[i]
 	var col := Pal.player_color(i)
-	if s.kind == "empty":
-		UI.panel(self, r, Color(Pal.UI_PANEL, 0.6), Pal.UI_EDGE.darkened(0.3))
-		var avail := i < _max_players()
-		PixelFont.draw_text(self, r.position + Vector2(r.size.x * 0.5, 70), "P%d" % (i + 1), Pal.UI_DIM if avail else Pal.UI_LOCK, 2, 1)
+	if sl.kind == "empty":
+		UI.panel(self, r, Color(Pal.UI_PANEL, 0.55), Pal.UI_EDGE.darkened(0.3), false)
+		var avail := i < Net.mode_max()
+		PixelFont.draw_text(self, r.position + Vector2(r.size.x * 0.5, 34), "P%d" % (i + 1), Pal.UI_DIM if avail else Pal.UI_LOCK, 2, 1)
 		if avail:
-			var blink := int(t * 2.0 + i) % 2 == 0
-			PixelFont.draw_text(self, r.position + Vector2(r.size.x * 0.5, 96), "PRESS JUMP" if blink else "TO JOIN", Pal.UI_DIM, 1, 1)
-		else:
-			PixelFont.draw_text(self, r.position + Vector2(r.size.x * 0.5, 96), "N/A", Pal.UI_LOCK, 1, 1)
+			PixelFont.draw_text(self, r.position + Vector2(r.size.x * 0.5, 58), "OPEN" if int(t * 2.0 + i) % 2 == 0 else "PRESS JUMP", Pal.UI_DIM, 1, 1)
 		return
-	var team_col := Pal.team_color(int(s.team))
+	var team_col := Pal.team_color(int(sl.team))
 	var head_col: Color = team_col if _team_mode() else col
-	UI.panel(self, r, Pal.UI_PANEL, head_col)
-	draw_rect(Rect2(r.position, Vector2(r.size.x, 13)), head_col.darkened(0.25))
-	var who := "P%d %s" % [i + 1, Pal.player_shape(i)]
-	if s.kind == "bot":
-		who = "CPU %s" % Pal.player_shape(i)
-	PixelFont.draw_text(self, r.position + Vector2(4, 3), who, Pal.UI_TEXT)
-	PixelFont.draw_text(self, r.position + Vector2(r.size.x - 4, 3), InputHub.short_label(s.device) if s.kind == "human" else ModeDefs.rule_label("bot_level", int(Settings.get_value("bot_difficulty"))), Pal.UI_TEXT, 1, 2)
-	# Stage
-	draw_rect(Rect2(r.position.x + 8, 128, r.size.x - 16, 2), Color(0, 0, 0, 0.35))
-	var pr: Dictionary = presets[int(s.preset) % presets.size()]
-	var rows := ["CAT", "TEAM", "PROFILE", "★READY"]
-	var vals := [str(pr.name), Pal.team_name(int(s.team)) if _team_mode() else "-", SaveData.profile_name(int(s.profile)), "READY!" if s.ready else ""]
-	for k in 4:
-		var y := r.position.y + 100 + k * 18
-		var sel: bool = s.kind == "human" and int(s.row) == k and not s.ready
+	var mine: bool = sl.kind == "human" and int(sl.owner) == Net.my_id
+	UI.panel(self, r, Pal.UI_PANEL if not mine else Pal.UI_PANEL2, head_col, false)
+	draw_rect(Rect2(r.position, Vector2(r.size.x, 11)), head_col.darkened(0.25))
+	var who := "%s%d" % [Pal.player_shape(i), i + 1]
+	var tag := ""
+	if sl.kind == "bot":
+		tag = "CPU " + ModeDefs.rule_label("bot_level", int(Settings.get_value("bot_difficulty")))
+	elif mine:
+		tag = InputHub.short_label(sl.device)
+	else:
+		tag = "LAN"
+	PixelFont.draw_text(self, r.position + Vector2(3, 2), who, Pal.UI_TEXT)
+	PixelFont.draw_text(self, r.position + Vector2(r.size.x - 3, 2), tag, Pal.UI_TEXT, 1, 2)
+	PixelFont.draw_text(self, r.position + Vector2(r.size.x * 0.5, 13), str(sl.name).substr(0, 14), col, 1, 1)
+	draw_rect(Rect2(r.position.x + 6, r.position.y + 56, r.size.x - 12, 1), Color(0, 0, 0, 0.35))
+	var ui: Dictionary = local_ui.get(sl.device, {"row": -1}) if mine else {"row": -1}
+	var cat_name := str(Sprites.full_skin(sl.skin).get("name", "?"))
+	var vals := [cat_name.substr(0, 10), Pal.team_name(int(sl.team)) if _team_mode() else "-", "READY!" if sl.ready else "..."]
+	for k in ROWS.size():
+		var y := r.position.y + 60 + k * 12
+		var sel: bool = mine and int(ui.row) == k and not sl.ready
 		if sel:
-			draw_rect(Rect2(r.position.x + 3, y - 2, r.size.x - 6, 16), Color(Pal.UI_HILITE, 0.18))
-		PixelFont.draw_text(self, Vector2(r.position.x + 6, y), rows[k], Pal.UI_HILITE if sel else Pal.UI_DIM)
+			draw_rect(Rect2(r.position.x + 2, y - 1, r.size.x - 4, 11), Color(Pal.UI_HILITE, 0.2))
 		var v: String = vals[k]
-		if v != "":
-			if sel and k < 3:
-				v = "◄" + v + "►"
-			PixelFont.draw_text(self, Vector2(r.position.x + r.size.x - 6, y + 8 if k < 3 else y), v, Pal.UI_TEXT if k < 3 else Pal.UI_GOOD, 1, 2)
-	if s.ready:
-		PixelFont.draw_text(self, r.position + Vector2(r.size.x * 0.5, 18), "READY!", Pal.UI_GOOD, 2, 1)
-	PixelFont.draw_text(self, r.position + Vector2(r.size.x * 0.5, 92), SaveData.mastery_title(pr.id), Pal.UI_DIM, 1, 1)
+		if sel and k < 2:
+			v = "◄" + v + "►"
+		var c := Pal.UI_TEXT
+		if k == 2:
+			c = Pal.UI_GOOD if sl.ready else Pal.UI_DIM
+		if k == 1 and _team_mode():
+			c = team_col
+		PixelFont.draw_text(self, Vector2(r.position.x + r.size.x * 0.5, y), v, Pal.UI_HILITE if sel else c, 1, 1)

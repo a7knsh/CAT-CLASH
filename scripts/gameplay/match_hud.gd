@@ -20,6 +20,8 @@ func _ready() -> void:
 
 
 func flash(c: Color) -> void:
+	if ctl and ctl.has_method("net_event"):
+		ctl.net_event(["flash", c])
 	if Settings.flash_ok():
 		flash_c = c
 
@@ -38,7 +40,17 @@ func _draw_hud() -> void:
 	var teams: bool = ctl.mode.show_team_colors()
 	var list: Array = ctl.mode.hud_fighters()
 	var n := list.size()
-	if n > 0 and not ctl.mode.hide_panels():
+	if n > 4 and not ctl.mode.hide_panels():
+		# 5-10 fighters: compact panels in up to two rows of five.
+		var rows := int(ceil(n / 5.0))
+		for i in n:
+			var row := i / 5
+			var in_row := mini(5, n - row * 5)
+			var pw2 := 92.0
+			var x0b := 240.0 - (pw2 * in_row + 3.0 * (in_row - 1)) * 0.5
+			var y := 270.0 - (rows - row) * 21.0 - 1.0
+			_panel_compact(list[i], Rect2(x0b + (i % 5) * (pw2 + 3.0), y, pw2, 19), teams)
+	elif n > 0 and not ctl.mode.hide_panels():
 		var pw := minf(116.0, (476.0 - (n - 1) * 4.0) / n)
 		var ph := 26.0 if s == 1 else 36.0
 		var total := pw * n + 4.0 * (n - 1)
@@ -77,6 +89,40 @@ func _draw_hud() -> void:
 	var info: Array = ctl.mode.hud_lines()
 	for i in info.size():
 		PixelFont.draw_text(canvas, Vector2(6, 18 + i * 9), info[i], Pal.UI_TEXT)
+
+
+## Height of the bottom HUD band (the camera keeps fighters above it).
+func height() -> float:
+	if ctl == null or ctl.mode == null:
+		return 29.0
+	var n: int = ctl.mode.hud_fighters().size()
+	if n > 4:
+		return ceil(n / 5.0) * 21.0 + 2.0
+	return 29.0 if int(Settings.get_value("hud_scale")) == 1 else 39.0
+
+
+func _panel_compact(f: CatFighter, r: Rect2, teams: bool) -> void:
+	var col: Color = Pal.team_color(f.team) if teams else Pal.player_color(f.slot)
+	var out = f.eliminated or (f.dead and not ctl.mode.respawns())
+	UI.panel(canvas, r, Pal.UI_PANEL if not out else Color("201828"), col.darkened(0.2), false)
+	canvas.draw_rect(Rect2(r.position, Vector2(2, r.size.y)), col)
+	CatPuppet.draw_head(canvas, r.position + Vector2(10, 9), f.skin, 0.75)
+	var shape := Pal.team_shape(f.team) if teams else Pal.player_shape(f.slot)
+	PixelFont.draw_text(canvas, r.position + Vector2(19, 2), (shape + f.display_name).substr(0, 9), col)
+	var hp_frac: float = f.hp / f.max_hp if not f.dead else 0.0
+	UI.bar(canvas, Rect2(r.position.x + 19, r.position.y + 12, r.size.x - 40, 3), hp_frac, Pal.hp_color(hp_frac))
+	var right = ctl.mode.hud_player_text(f)
+	if right == "" and ctl.mode.respawns() and not ctl.mode.uses_score():
+		right = "♥%d" % f.stocks
+	if out:
+		right = "×"
+	PixelFont.draw_text(canvas, Vector2(r.end.x - 2, r.position.y + 9), right.substr(0, 4), Pal.UI_TEXT, 1, 2)
+	if not f.weapon.is_empty():
+		var tex := Sprites.weapon_texture(f.weapon_id())
+		var sc := minf(1.0, 12.0 / maxf(tex.get_width(), 1.0))
+		canvas.draw_set_transform(Vector2(r.end.x - 9, r.position.y + 4), 0.0, Vector2(sc, sc))
+		canvas.draw_texture(tex, -tex.get_size() * 0.5)
+		canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func _panel(f: CatFighter, r: Rect2, teams: bool, s: int) -> void:

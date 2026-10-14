@@ -1,6 +1,6 @@
 extends Screen
 ## Collection: weapon encyclopedia, trophy cabinet, cosmetics shop (spend
-## yarn earned by playing — never real money, never gameplay advantages)
+## yarn earned by playing - never real money, never gameplay advantages)
 ## and challenges (daily, training milestones, cat mastery).
 
 const TABS := ["WEAPONS", "TROPHIES", "SHOP", "CHALLENGES"]

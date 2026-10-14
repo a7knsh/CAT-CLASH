@@ -151,3 +151,7 @@ func _rank_score(f: CatFighter) -> float:
 
 func extra_progress() -> Dictionary:
 	return {"max:best_wave": float(wave - (0 if cleared else 1))}
+
+
+func net_vars() -> Array:
+	return ["wave", "to_spawn", "state", "cleared"]
