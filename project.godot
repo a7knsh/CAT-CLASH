@@ -1,0 +1,61 @@
+; Engine configuration file.
+; CAT CLASH: ULTIMATE ARENA — Godot 4.3 project.
+
+config_version=5
+
+[application]
+
+config/name="Cat Clash: Ultimate Arena"
+config/description="A chaotic local-multiplayer pixel-art cat brawler."
+config/version="0.9.0"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+config/use_custom_user_dir=true
+config/custom_user_dir_name="CatClash"
+boot_splash/bg_color=Color(0.07, 0.05, 0.11, 1)
+boot_splash/show_image=false
+
+[autoload]
+
+Settings="*res://scripts/autoload/settings.gd"
+PixelFont="*res://scripts/autoload/pixel_font.gd"
+GameDB="*res://scripts/autoload/game_db.gd"
+SaveData="*res://scripts/autoload/save_data.gd"
+InputHub="*res://scripts/autoload/input_hub.gd"
+AudioHub="*res://scripts/autoload/audio_hub.gd"
+Router="*res://scripts/autoload/router.gd"
+Net="*res://scripts/autoload/net_hub.gd"
+
+[display]
+
+window/size/viewport_width=480
+window/size/viewport_height=270
+window/size/window_width_override=1440
+window/size/window_height_override=810
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[input_devices]
+
+pointing/emulate_touch_from_mouse=false
+
+[physics]
+
+common/physics_ticks_per_second=60
+common/max_physics_steps_per_frame=4
+2d/default_gravity=900.0
+
+[layer_names]
+
+2d_physics/layer_1="solid"
+2d_physics/layer_2="fighters"
+2d_physics/layer_3="oneway"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/canvas_textures/default_texture_filter=0
+2d/snap/snap_2d_transforms_to_pixel=true
+2d/snap/snap_2d_vertices_to_pixel=true
+environment/defaults/default_clear_color=Color(0.07, 0.05, 0.11, 1)
